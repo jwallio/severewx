@@ -76,7 +76,20 @@ def _label_slice(label_dataset: xr.Dataset | None, valid_date: str, fallback_lik
         return None
     if np.datetime64(valid_date) not in label_dataset["date"].values:
         return None
-    return label_dataset.sel(date=np.datetime64(valid_date))
+    label_slice = label_dataset.sel(date=np.datetime64(valid_date))
+    if (
+        label_slice.sizes.get("lat") != fallback_like.sizes.get("lat")
+        or label_slice.sizes.get("lon") != fallback_like.sizes.get("lon")
+    ):
+        label_slice = label_slice.interp(
+            lat=fallback_like["lat"],
+            lon=fallback_like["lon"],
+            method="nearest",
+        )
+    for hazard in ("tornado", "hail", "wind", "any"):
+        if hazard in label_slice:
+            label_slice[hazard] = label_slice[hazard].fillna(0)
+    return label_slice
 
 
 def _observed_outcome_panel(label_slice: xr.Dataset | None, template_field: xr.DataArray) -> xr.DataArray | None:

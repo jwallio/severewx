@@ -49,6 +49,18 @@ def _label_dataset() -> xr.Dataset:
     )
 
 
+def _mismatched_label_dataset() -> xr.Dataset:
+    return xr.Dataset(
+        {
+            "tornado": (("date", "lat", "lon"), np.array([[[1]]], dtype=float)),
+            "hail": (("date", "lat", "lon"), np.array([[[0]]], dtype=float)),
+            "wind": (("date", "lat", "lon"), np.array([[[0]]], dtype=float)),
+            "any": (("date", "lat", "lon"), np.array([[[1]]], dtype=float)),
+        },
+        coords={"date": np.array([np.datetime64("2026-04-09")]), "lat": [34.5], "lon": [-97.5]},
+    )
+
+
 def _verification_payload() -> dict[str, object]:
     return {
         "run_summary": {
@@ -134,6 +146,35 @@ def test_render_case_review_boards_keeps_distinct_observed_and_summary_zone(tmp_
         paths,
     )
     assert outputs[0].name.endswith("_case_review.png")
+    assert outputs[0].stat().st_size > 0
+
+
+def test_render_case_review_boards_aligns_mismatched_label_grid(tmp_path) -> None:
+    settings = load_settings()
+    settings.raw["paths"]["root"] = str(tmp_path)
+    settings.raw["render"]["cartopy"] = False
+    paths = build_paths(settings)
+    prediction = xr.Dataset(
+        {
+            "tornado_prob": (("time", "lat", "lon"), np.array([[[0.4, 0.2], [0.1, 0.0]]])),
+            "any_prob": (("time", "lat", "lon"), np.array([[[0.7, 0.6], [0.5, 0.4]]])),
+            "outbreak_risk": (("time", "lat", "lon"), np.array([[[0.6, 0.3], [0.2, 0.1]]])),
+            "confidence_score": (("time", "lat", "lon"), np.array([[[0.65, 0.6], [0.55, 0.5]]])),
+            "bust_risk_score": (("time", "lat", "lon"), np.array([[[0.3, 0.35], [0.4, 0.45]]])),
+        },
+        coords={"time": pd.to_datetime(["2026-04-09T00:00:00"]), "lat": [34.0, 36.0], "lon": [-99.0, -97.0]},
+    )
+    outputs = render_case_review_boards(
+        prediction,
+        _mismatched_label_dataset(),
+        _verification_payload(),
+        "2026-04-09",
+        "00",
+        settings,
+        paths,
+    )
+    assert len(outputs) == 1
+    assert outputs[0].exists()
     assert outputs[0].stat().st_size > 0
 
 
