@@ -57,7 +57,15 @@ def build_analog_reference(frame: pd.DataFrame, settings: AppSettings) -> pd.Dat
         any_outbreak=("any_outbreak", "max"),
         significant_tornado_support=("significant_tornado_support", "max"),
     )
-    grouped["dominant_mode"] = grouped[["tornado_outbreak", "hail_outbreak", "wind_outbreak"]].idxmax(axis=1).str.replace("_outbreak", "", regex=False)
+    mode_columns = ["tornado_outbreak", "hail_outbreak", "wind_outbreak"]
+    mode_frame = grouped[mode_columns]
+    all_na_mask = mode_frame.isna().all(axis=1)
+    grouped["dominant_mode"] = (
+        mode_frame.fillna(float("-inf"))
+        .idxmax(axis=1)
+        .str.replace("_outbreak", "", regex=False)
+        .mask(all_na_mask, "none")
+    )
     return grouped
 
 
