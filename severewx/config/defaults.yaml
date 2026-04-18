@@ -1,0 +1,199 @@
+paths:
+  root: .
+  data: data
+  raw: data/raw
+  interim: data/interim
+  processed: data/processed
+  feature_archive: data/processed/feature_archive
+  archive_metadata: data/processed/archive_metadata
+  labels: data/labels
+  models: data/models
+  outputs: data/outputs
+  maps: data/outputs/maps
+  verification: data/outputs/verification
+  archive: data/archive
+ingest:
+  source: nomads
+  failover_sources: []
+  model: gfs
+  leads: [0, 6, 12, 18, 24, 30, 36, 42, 48, 60, 72, 84, 90]
+  nomads_base_url: "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl"
+  timeout_seconds: 90
+  retries: 3
+  backoff_seconds: 3
+  allow_synthetic_fallback: true
+  local_file_pattern: ""
+  local_staged_gfs:
+    file_patterns:
+      - "{root}/data/raw/staged_gfs/{date}/{cycle}/gfs.t{cycle}z.pgrb2.0p25.f{lead:03d}.grib2"
+      - "{root}/data/raw/staged_gfs/{date_nodash}/{cycle}/gfs.t{cycle}z.pgrb2.0p25.f{lead:03d}.grib2"
+      - "{root}/data/raw/staged_gfs/{year}/{date}/{cycle}/gfs.t{cycle}z.pgrb2.0p25.f{lead:03d}.grib2"
+  allow_partial_cycle: false
+  required_fields:
+    - t2m
+    - mslp
+    - u10
+    - v10
+    - cape
+    - u850
+    - v850
+    - t700
+    - z500
+    - u500
+    - v500
+  optional_fields:
+    - td2m
+    - cin
+    - pwat
+    - t500
+grid:
+  lat_min: 20.0
+  lat_max: 55.0
+  lon_min: -130.0
+  lon_max: -60.0
+  lat_step: 1.0
+  lon_step: 1.0
+labels:
+  neighborhood_km: 40.0
+  significant_tornado_f_scale: 2
+  hail_significant_inches: 2.0
+  wind_significant_kts: 65.0
+  outbreak:
+    tornado_reports: 12
+    significant_tornado_reports: 3
+    hail_reports: 35
+    wind_reports: 45
+    any_reports: 70
+    regional_cluster_reports: 10
+    active_severe_reports: 8
+    tornado_region_reports: 6
+    hail_region_reports: 15
+    wind_region_reports: 18
+    significant_hail_reports: 8
+    significant_wind_reports: 10
+features:
+  analog_top_k: 15
+  analog_feature_columns:
+    - cape
+    - cin
+    - td2m
+    - shear_0_6km
+    - ll_shear_proxy
+    - llj_speed
+    - lapse_rate_700_500
+    - forcing_proxy
+    - stp_proxy
+    - tornado_favored_overlap
+    - hail_favored_overlap
+    - wind_favored_overlap
+  spatial_radius_gridpoints: 1
+  use_prior_run_stability: true
+models:
+  backend: lightgbm
+  random_state: 42
+  validation_fraction: 0.2
+  min_training_rows: 50
+  prefer_feature_archive: true
+  training_guardrails:
+    minimum_real_rows_overall: 500
+    minimum_real_rows_by_hazard:
+      tornado: 40
+      hail: 40
+      wind: 40
+      any: 100
+    minimum_real_rows_by_lead_day:
+      1: 100
+      2: 100
+      3: 75
+      4: 50
+    maximum_synthetic_fraction: 0.60
+    real_heavy_fraction: 0.75
+    mixed_fraction: 0.35
+  hazard_columns:
+    - cape
+    - cin
+    - t2m
+    - td2m
+    - mslp
+    - wind10m_speed
+    - shear_0_6km
+    - ll_shear_proxy
+    - llj_speed
+    - helicity_proxy
+    - pwat
+    - moisture_transport
+    - low_lcl_support
+    - moisture_quality
+    - lapse_rate_700_500
+    - forcing_proxy
+    - forcing_instability_overlap
+    - scp_proxy
+    - stp_proxy
+    - cape_shear_overlap
+    - tornado_favored_overlap
+    - hail_favored_overlap
+    - wind_favored_overlap
+    - outbreak_corridor_index
+    - tornado_corridor_index
+    - analog_similarity
+    - analog_tornado_similarity
+    - analog_hail_similarity
+    - analog_wind_similarity
+    - analog_tornado_rate
+    - analog_hail_rate
+    - analog_wind_rate
+    - analog_outbreak_support
+    - analog_sigtor_support
+    - analog_mode_coherence
+    - prior_run_delta
+    - neighborhood_mean_any
+    - synoptic_support
+  outbreak_columns:
+    - sig_tor_support
+    - tornado_favored_overlap
+    - outbreak_corridor_index
+    - tornado_corridor_index
+    - analog_outbreak_support
+    - analog_sigtor_support
+    - analog_mode_coherence
+    - synoptic_support
+    - forcing_proxy
+calibration:
+  method: isotonic
+  enabled: true
+  by_region: true
+  by_lead_day: true
+  min_group_samples: 25
+confidence:
+  weights:
+    probability: 0.15
+    stability: 0.15
+    calibration: 0.15
+    analog: 0.15
+    agreement: 0.15
+    outbreak: 0.10
+    signal_quality: 0.15
+    outbreak_coherence: 0.15
+  thresholds:
+    moderate: 0.40
+    high: 0.70
+bustrisk:
+  weights:
+    cap_hold: 0.20
+    moisture_failure: 0.15
+    timing_mismatch: 0.15
+    contamination: 0.15
+    mode_risk: 0.10
+    disagreement: 0.10
+    analog_penalty: 0.10
+    outbreak_penalty: 0.05
+  outbreak_threshold: 0.45
+  thresholds:
+    moderate: 0.40
+    high: 0.70
+render:
+  dpi: 130
+  figure_size: [11, 7]
+  cartopy: true
+  conus_extent: [-125.0, -66.5, 24.0, 50.0]
+  show_gridlines: false

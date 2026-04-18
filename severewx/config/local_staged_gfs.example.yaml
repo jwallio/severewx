@@ -1,0 +1,8 @@
+ingest:
+  source: local_staged_gfs
+  allow_synthetic_fallback: false
+  allow_partial_cycle: true
+  local_staged_gfs:
+    file_patterns:
+      - "{root}/data/raw/staged_gfs/{date}/{cycle}/gfs.t{cycle}z.pgrb2.0p25.f{lead:03d}.grib2"
+      - "{root}/data/raw/staged_gfs/{date}/{cycle}/gfs.t{cycle}z.pgrb2.0p25.f{lead:03d}.nc"
