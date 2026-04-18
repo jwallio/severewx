@@ -34,6 +34,23 @@ def _empty_label_slice(prediction_daily: xr.Dataset) -> xr.Dataset:
     )
 
 
+def _align_label_slice_to_prediction_grid(prediction_daily: xr.Dataset, label_slice: xr.Dataset) -> xr.Dataset:
+    hazard_columns = ("tornado", "hail", "wind", "any")
+    if (
+        label_slice.sizes.get("lat") != prediction_daily.sizes.get("lat")
+        or label_slice.sizes.get("lon") != prediction_daily.sizes.get("lon")
+    ):
+        label_slice = label_slice.interp(
+            lat=prediction_daily["lat"],
+            lon=prediction_daily["lon"],
+            method="nearest",
+        )
+    for hazard in hazard_columns:
+        if hazard in label_slice:
+            label_slice[hazard] = label_slice[hazard].fillna(0)
+    return label_slice
+
+
 def _flatten_region_frame(prediction_daily: xr.Dataset, label_slice: xr.Dataset) -> pd.DataFrame:
     frame = pd.DataFrame(
         {
@@ -82,6 +99,7 @@ def verify_daily_probabilities(
             label_slice = label_dataset.sel(date=np.datetime64(valid_date))
         else:
             label_slice = _empty_label_slice(prediction_daily)
+        label_slice = _align_label_slice_to_prediction_grid(prediction_daily, label_slice)
 
         day_row: dict[str, object] = {
             "init_date": run_date,
