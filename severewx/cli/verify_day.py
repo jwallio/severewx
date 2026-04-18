@@ -15,24 +15,25 @@ from severewx.utils.paths import build_paths
 from severewx.verify.daily import verify_daily_probabilities
 
 
+def _latest_matching_file(directory, pattern: str):
+    matches = list(directory.glob(pattern))
+    return max(matches, key=lambda path: path.stat().st_mtime) if matches else None
+
+
 def _latest_prediction_for_date(paths, date: str):
-    matches = sorted(paths.outputs.glob(f"forecast_products_{date}_*.nc"))
-    return matches[-1] if matches else None
+    return _latest_matching_file(paths.outputs, f"forecast_products_{date}_*.nc")
 
 
 def _latest_label_cube(paths):
-    matches = sorted(paths.labels.glob("labels_*.nc"))
-    return matches[-1] if matches else None
+    return _latest_matching_file(paths.labels, "labels_*.nc")
 
 
 def _latest_outbreak_table(paths):
-    matches = sorted(paths.labels.glob("outbreaks_*.parquet"))
-    return matches[-1] if matches else None
+    return _latest_matching_file(paths.labels, "outbreaks_*.parquet")
 
 
 def _latest_metadata_for_date(paths, date: str):
-    matches = sorted(paths.outputs.glob(f"forecast_metadata_{date}_*.json"))
-    return matches[-1] if matches else None
+    return _latest_matching_file(paths.outputs, f"forecast_metadata_{date}_*.json")
 
 
 def main() -> None:
