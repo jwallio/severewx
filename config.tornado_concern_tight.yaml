@@ -1,0 +1,9 @@
+models:
+  tornado_concern:
+    max_negative_rows: 250000
+    candidate_sig_tor_support: 0.35
+    candidate_tornado_overlap: 0.45
+    candidate_scp_proxy: 0.35
+    candidate_low_lcl_support: 0.95
+    candidate_synoptic_support: 140.0
+    significant_positive_weight: 2.0

@@ -1,0 +1,10 @@
+models:
+  hazard_sample_weighting:
+    enabled: true
+    mode: balanced_binary
+    max_positive_weight: 5.0
+    per_hazard_max_positive_weight:
+      tornado: 10.0
+      hail: 5.0
+      wind: 3.0
+      any: 5.0

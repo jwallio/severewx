@@ -34,11 +34,39 @@ def _empty_label_slice(prediction_daily: xr.Dataset) -> xr.Dataset:
     )
 
 
+def _align_prediction_to_label_grid(prediction_daily: xr.Dataset, label_slice: xr.Dataset) -> xr.Dataset:
+    prediction_variables = [
+        "tornado_prob",
+        "hail_prob",
+        "wind_prob",
+        "any_prob",
+        "outbreak_risk",
+        "sig_tor_support",
+        "confidence_score",
+        "signal_quality_score",
+        "bust_risk_score",
+    ]
+    if (
+        label_slice.sizes.get("lat") != prediction_daily.sizes.get("lat")
+        or label_slice.sizes.get("lon") != prediction_daily.sizes.get("lon")
+        or not np.array_equal(label_slice["lat"].values, prediction_daily["lat"].values)
+        or not np.array_equal(label_slice["lon"].values, prediction_daily["lon"].values)
+    ):
+        prediction_daily = prediction_daily[prediction_variables].interp(
+            lat=label_slice["lat"],
+            lon=label_slice["lon"],
+            method="nearest",
+        )
+    return prediction_daily
+
+
 def _align_label_slice_to_prediction_grid(prediction_daily: xr.Dataset, label_slice: xr.Dataset) -> xr.Dataset:
     hazard_columns = ("tornado", "hail", "wind", "any")
     if (
         label_slice.sizes.get("lat") != prediction_daily.sizes.get("lat")
         or label_slice.sizes.get("lon") != prediction_daily.sizes.get("lon")
+        or not np.array_equal(label_slice["lat"].values, prediction_daily["lat"].values)
+        or not np.array_equal(label_slice["lon"].values, prediction_daily["lon"].values)
     ):
         label_slice = label_slice.interp(
             lat=prediction_daily["lat"],
@@ -99,6 +127,7 @@ def verify_daily_probabilities(
             label_slice = label_dataset.sel(date=np.datetime64(valid_date))
         else:
             label_slice = _empty_label_slice(prediction_daily)
+        prediction_daily = _align_prediction_to_label_grid(prediction_daily, label_slice)
         label_slice = _align_label_slice_to_prediction_grid(prediction_daily, label_slice)
 
         day_row: dict[str, object] = {

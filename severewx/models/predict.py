@@ -15,6 +15,7 @@ from severewx.features.composites import build_feature_dataset
 from severewx.features.base import flatten_feature_dataset
 from severewx.models.model_io import load_model_artifact
 from severewx.models.outbreak import apply_outbreak_model
+from severewx.models.tornado_concern import apply_tornado_concern_model
 
 
 def predict_hazard_frame(
@@ -40,6 +41,7 @@ def predict_hazard_frame(
 
     outbreak_artifact = load_model_artifact(paths, "outbreak")
     frame = apply_outbreak_model(outbreak_artifact, frame)
+    frame = apply_tornado_concern_model(frame, paths, settings=settings)
     frame = add_confidence(frame, settings)
     frame = add_bust_risk(frame, settings)
     return frame

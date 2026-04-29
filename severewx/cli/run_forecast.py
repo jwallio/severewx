@@ -36,6 +36,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run severe-weather forecast")
     parser.add_argument("--date", required=True)
     parser.add_argument("--cycle", required=True)
+    parser.add_argument("--skip-render", action="store_true", help="Skip map rendering and only write forecast products/metadata")
     args = parser.parse_args()
     logger = configure_logging()
     settings = load_settings()
@@ -55,7 +56,7 @@ def main() -> None:
     prediction_ds = prediction_frame_to_dataset(prediction_frame)
     output_path = paths.outputs / f"forecast_products_{args.date}_{args.cycle}.nc"
     prediction_ds.to_netcdf(output_path)
-    rendered = render_probability_maps(prediction_ds, args.date, args.cycle, settings, paths)
+    rendered = [] if args.skip_render else render_probability_maps(prediction_ds, args.date, args.cycle, settings, paths)
     ingest_summary_path = paths.interim / f"ingest_summary_{args.date}_{args.cycle}.json"
     metadata = {
         "init_date": args.date,
@@ -76,7 +77,10 @@ def main() -> None:
     _metadata_path(paths, args.date, args.cycle).write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     logger.info("saved forecast products to %s", output_path)
     board_count = sum(path.name.endswith("_daily_board.png") for path in rendered)
-    logger.info("rendered %d graphics (%d daily boards)", len(rendered), board_count)
+    if args.skip_render:
+        logger.info("skipped forecast graphics rendering")
+    else:
+        logger.info("rendered %d graphics (%d daily boards)", len(rendered), board_count)
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from severewx.verify.daily import verify_daily_probabilities
+from severewx.verify.daily import _align_prediction_to_label_grid, verify_daily_probabilities
 
 
 def test_verify_daily_probabilities_writes_run_level_summary(tmp_path) -> None:
@@ -90,3 +90,35 @@ def test_verify_daily_probabilities_aligns_mismatched_label_grid(tmp_path) -> No
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert payload["run_summary"]["n_valid_days"] == 1
     assert len(payload["lead_day_summary"]) == 4
+
+
+def test_align_prediction_to_label_grid_downsamples_forecast_to_coarse_labels() -> None:
+    prediction = xr.Dataset(
+        {
+            "tornado_prob": (("lat", "lon"), np.arange(25, dtype=float).reshape(5, 5)),
+            "hail_prob": (("lat", "lon"), np.full((5, 5), 0.2, dtype=float)),
+            "wind_prob": (("lat", "lon"), np.full((5, 5), 0.3, dtype=float)),
+            "any_prob": (("lat", "lon"), np.full((5, 5), 0.4, dtype=float)),
+            "outbreak_risk": (("lat", "lon"), np.full((5, 5), 0.5, dtype=float)),
+            "sig_tor_support": (("lat", "lon"), np.full((5, 5), 0.6, dtype=float)),
+            "confidence_score": (("lat", "lon"), np.full((5, 5), 0.7, dtype=float)),
+            "signal_quality_score": (("lat", "lon"), np.full((5, 5), 0.8, dtype=float)),
+            "bust_risk_score": (("lat", "lon"), np.full((5, 5), 0.1, dtype=float)),
+        },
+        coords={"lat": [20.0, 20.25, 20.5, 20.75, 21.0], "lon": [-100.0, -99.75, -99.5, -99.25, -99.0]},
+    )
+    labels = xr.Dataset(
+        {
+            "tornado": (("lat", "lon"), np.array([[1, 0], [0, 1]], dtype=int)),
+            "hail": (("lat", "lon"), np.zeros((2, 2), dtype=int)),
+            "wind": (("lat", "lon"), np.zeros((2, 2), dtype=int)),
+            "any": (("lat", "lon"), np.array([[1, 0], [0, 1]], dtype=int)),
+        },
+        coords={"lat": [20.0, 21.0], "lon": [-100.0, -99.0]},
+    )
+
+    aligned = _align_prediction_to_label_grid(prediction, labels)
+
+    assert aligned.sizes["lat"] == 2
+    assert aligned.sizes["lon"] == 2
+    assert aligned["tornado_prob"].values.tolist() == [[0.0, 4.0], [20.0, 24.0]]

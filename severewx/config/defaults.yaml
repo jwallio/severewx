@@ -94,6 +94,31 @@ models:
   validation_fraction: 0.2
   min_training_rows: 50
   prefer_feature_archive: true
+  hazard_sample_weighting:
+    enabled: false
+    mode: balanced_binary
+    min_positive_weight: 1.0
+    max_positive_weight: 50.0
+    per_hazard_max_positive_weight: {}
+    negative_weight: 1.0
+  tornado_concern:
+    max_negative_rows: 250000
+    candidate_sig_tor_support: 0.10
+    candidate_tornado_overlap: 0.15
+    candidate_scp_proxy: 0.10
+    candidate_low_lcl_support: 0.75
+    candidate_synoptic_support: 60.0
+    significant_positive_weight: 2.0
+    hard_negative_weight: 1.5
+    public_readiness_guardrail:
+      enabled: true
+      display_threshold: 0.05
+      max_allowed_prob: 0.049
+      min_interaction: 0.003
+      min_tornado_corridor_index: 0.01
+      min_tornado_overlap: 0.08
+      min_scp_proxy: 0.02
+      min_analog_outbreak_support: 0.60
   training_guardrails:
     minimum_real_rows_overall: 500
     minimum_real_rows_by_hazard:

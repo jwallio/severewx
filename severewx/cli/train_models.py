@@ -13,6 +13,7 @@ from severewx.config import load_settings
 from severewx.features.analogs import save_analog_reference
 from severewx.models.dataset import load_training_table
 from severewx.models.outbreak import save_outbreak_model
+from severewx.models.tornado_concern import save_tornado_concern_model
 from severewx.models.train import train_and_save_hazard_model
 from severewx.utils.logging import configure_logging
 from severewx.utils.paths import build_paths
@@ -31,6 +32,12 @@ def main() -> None:
     logger = configure_logging()
     settings = load_settings()
     paths = build_paths(settings)
+    concern_only_training = set(args.hazards) == {"tornado_concern"}
+    requested_hazards = [hazard for hazard in args.hazards if hazard != "tornado_concern"]
+    if "tornado_concern" in args.hazards and "outbreak" not in requested_hazards:
+        requested_hazards.append("outbreak")
+    if concern_only_training:
+        requested_hazards = ["tornado"]
 
     label_file = _latest_matching_file(paths.labels, "labels_*.nc")
     outbreak_file = _latest_matching_file(paths.labels, "outbreaks_*.parquet")
@@ -40,9 +47,9 @@ def main() -> None:
         paths,
         settings,
         label_cube=label_cube,
-        outbreak_table=outbreak_table,
+        outbreak_table=None if concern_only_training else outbreak_table,
         analog_archive_path=None,
-        requested_hazards=args.hazards,
+        requested_hazards=requested_hazards,
         allow_degraded=args.allow_degraded,
     )
     training_frame = training_bundle.frame
@@ -80,17 +87,22 @@ def main() -> None:
         training_bundle.metadata.get("degraded_mode_reason"),
     )
     logger.info("saved training data summary to %s", training_summary_path)
-    coverage_json, coverage_csv = write_archive_coverage_summary(paths, training_data_summary=training_bundle.metadata, settings=settings)
-    logger.info("updated archive coverage summary %s", coverage_json)
-    logger.info("updated archive lead-day coverage csv %s", coverage_csv)
-    analog_reference_path = paths.models / "analog_reference.parquet"
-    save_analog_reference(training_frame, analog_reference_path, settings)
-    logger.info("saved analog reference to %s", analog_reference_path)
+    if not concern_only_training:
+        coverage_json, coverage_csv = write_archive_coverage_summary(paths, training_data_summary=training_bundle.metadata, settings=settings)
+        logger.info("updated archive coverage summary %s", coverage_json)
+        logger.info("updated archive lead-day coverage csv %s", coverage_csv)
+        analog_reference_path = paths.models / "analog_reference.parquet"
+        save_analog_reference(training_frame, analog_reference_path, settings)
+        logger.info("saved analog reference to %s", analog_reference_path)
 
     for hazard in args.hazards:
         if hazard == "outbreak":
             artifact = save_outbreak_model(training_frame, settings, paths)
             logger.info("trained outbreak model with backend=%s", artifact["backend"])
+            continue
+        if hazard == "tornado_concern":
+            artifact = save_tornado_concern_model(training_frame, settings, paths, outbreak_table=outbreak_table)
+            logger.info("trained tornado_concern model with brier=%.4f roc_auc=%s", artifact["metrics"]["brier_score"], artifact["metrics"]["roc_auc"])
             continue
         artifact = train_and_save_hazard_model(hazard, training_frame, settings, paths)
         logger.info("trained %s model with brier=%.4f roc_auc=%s", hazard, artifact["metrics"]["brier_score"], artifact["metrics"]["roc_auc"])

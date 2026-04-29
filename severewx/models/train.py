@@ -50,6 +50,49 @@ def _feature_columns(settings: AppSettings) -> list[str]:
     return ["lead_day", "lat", "lon", *columns]
 
 
+def _hazard_sample_weight(hazard: str, target: pd.Series, settings: AppSettings) -> tuple[np.ndarray | None, dict[str, Any]]:
+    config = settings.get("models.hazard_sample_weighting", {}) or {}
+    enabled = bool(config.get("enabled", False))
+    per_hazard_max = config.get("per_hazard_max_positive_weight", {}) or {}
+    max_positive_weight = float(per_hazard_max.get(hazard, config.get("max_positive_weight", 1.0)))
+    metadata: dict[str, Any] = {
+        "enabled": enabled,
+        "mode": str(config.get("mode", "none")),
+        "positive_weight": 1.0,
+        "hazard": hazard,
+        "max_positive_weight": max_positive_weight,
+    }
+    if not enabled:
+        return None, metadata
+
+    values = pd.Series(target).fillna(0).to_numpy(dtype=float)
+    positive_mask = values > 0.5
+    positive_count = int(positive_mask.sum())
+    negative_count = int((~positive_mask).sum())
+    metadata["positive_count"] = positive_count
+    metadata["negative_count"] = negative_count
+    if positive_count == 0 or negative_count == 0:
+        return None, metadata
+
+    mode = str(config.get("mode", "balanced_binary")).lower()
+    negative_weight = float(config.get("negative_weight", 1.0))
+    if mode == "balanced_binary":
+        raw_positive_weight = negative_count / positive_count
+    else:
+        raw_positive_weight = float(config.get("positive_weight", 1.0))
+    positive_weight = float(
+        np.clip(
+            raw_positive_weight,
+            float(config.get("min_positive_weight", 1.0)),
+            max_positive_weight,
+        )
+    )
+    metadata["mode"] = mode
+    metadata["positive_weight"] = positive_weight
+    sample_weight = np.where(positive_mask, positive_weight, negative_weight).astype(float)
+    return sample_weight, metadata
+
+
 @dataclass(slots=True)
 class TrainedHazardModel:
     artifact: dict[str, Any]
@@ -63,7 +106,11 @@ def train_hazard_model(hazard: str, frame: pd.DataFrame, settings: AppSettings) 
     columns = [column for column in _feature_columns(settings) if column in frame.columns]
     train_frame, valid_frame = _split_train_valid(frame, float(settings.get("models.validation_fraction", 0.2)))
     model, backend = _make_backend(settings)
-    model.fit(train_frame[columns], train_frame[hazard])
+    sample_weight, weighting_metadata = _hazard_sample_weight(hazard, train_frame[hazard], settings)
+    fit_kwargs: dict[str, Any] = {}
+    if sample_weight is not None:
+        fit_kwargs["sample_weight"] = sample_weight
+    model.fit(train_frame[columns], train_frame[hazard], **fit_kwargs)
     raw_valid = model.predict_proba(valid_frame[columns])[:, 1] if hasattr(model, "predict_proba") else model.predict(valid_frame[columns])
     calibrator = fit_group_calibrator(valid_frame.assign(raw_pred=raw_valid), "raw_pred", hazard, settings)
     calibrated = calibrator.apply(valid_frame.assign(raw_pred=raw_valid), "raw_pred")
@@ -79,6 +126,7 @@ def train_hazard_model(hazard: str, frame: pd.DataFrame, settings: AppSettings) 
             "roc_auc": safe_roc_auc(valid_frame[hazard].to_numpy(), calibrated),
         },
         "calibrator": calibrator,
+        "sample_weighting": weighting_metadata,
     }
     return TrainedHazardModel(artifact=artifact)
 
