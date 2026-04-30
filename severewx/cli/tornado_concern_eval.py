@@ -2888,6 +2888,8 @@ def _write_ranked_csv(path: Path, frame: pd.DataFrame) -> None:
 
 
 def _markdown_table(frame: pd.DataFrame, columns: list[str]) -> str:
+    if frame.empty or any(column not in frame.columns for column in columns):
+        return "_none_"
     subset = frame[columns].copy()
     header = "| " + " | ".join(columns) + " |"
     divider = "| " + " | ".join(["---"] * len(columns)) + " |"
@@ -3453,6 +3455,7 @@ def main() -> None:
     parser.add_argument("--component-checkpoint-output-csv", help="Optional side-by-side baseline vs tornado_hail_separation_v1 component checkpoint CSV")
     parser.add_argument("--component-checkpoint-output-md", help="Optional side-by-side baseline vs tornado_hail_separation_v1 component checkpoint Markdown")
     parser.add_argument("--component-checkpoint-only", action="store_true", help="Write only the component checkpoint comparison and skip the full ranked eval report")
+    parser.add_argument("--include-variant-summaries", action="store_true", help="Include slower all-variant comparison sections in the Markdown report")
     parser.add_argument("--raw-core-variant", choices=RAW_CORE_VARIANTS, default="baseline")
     parser.add_argument("--core-variant", choices=CORE_VARIANTS, default="baseline")
     parser.add_argument("--source-variant", choices=SOURCE_VARIANTS, default="baseline")
@@ -3519,48 +3522,57 @@ def main() -> None:
     adjusted_output, preference_changes = apply_tornado_preference_mode(output, mode=args.tornado_preference_mode)
     window_summary = summarize_case_windows(adjusted_output)
     failure_summary = summarize_failure_patterns(window_summary)
-    source_variant_summary = summarize_source_variants_from_artifacts(
-        artifact_pairs,
-        raw_core_variant=args.raw_core_variant,
-        core_variant=args.core_variant,
-        component_variant=args.component_variant,
-        score_variant=args.score_variant,
-    )
-    component_variant_summary = summarize_component_variants_from_artifacts(
-        artifact_pairs,
-        raw_core_variant=args.raw_core_variant,
-        core_variant=args.core_variant,
-        score_variant=args.score_variant,
-        source_variant=args.source_variant,
-    )
-    raw_core_variant_summary = summarize_raw_core_variants_from_artifacts(
-        artifact_pairs,
-        core_variant=args.core_variant,
-        source_variant=args.source_variant,
-        component_variant=args.component_variant,
-        score_variant=args.score_variant,
-    )
-    broader_validation_checkpoint = summarize_broader_validation_checkpoint_from_artifacts(
-        artifact_pairs,
-        core_variant=args.core_variant,
-        source_variant=args.source_variant,
-        component_variant=args.component_variant,
-        score_variant=args.score_variant,
-    )
-    baseline_vs_masked_core_steeper_validation = summarize_baseline_vs_masked_core_steeper_from_artifacts(
-        artifact_pairs,
-        core_variant=args.core_variant,
-        source_variant=args.source_variant,
-        component_variant=args.component_variant,
-        score_variant=args.score_variant,
-    )
-    core_variant_summary = summarize_core_variants_from_artifacts(
-        artifact_pairs,
-        raw_core_variant=args.raw_core_variant,
-        source_variant=args.source_variant,
-        component_variant=args.component_variant,
-        score_variant=args.score_variant,
-    )
+    include_variant_summaries = bool(args.include_variant_summaries) or len(artifact_pairs) <= 10
+    if include_variant_summaries:
+        source_variant_summary = summarize_source_variants_from_artifacts(
+            artifact_pairs,
+            raw_core_variant=args.raw_core_variant,
+            core_variant=args.core_variant,
+            component_variant=args.component_variant,
+            score_variant=args.score_variant,
+        )
+        component_variant_summary = summarize_component_variants_from_artifacts(
+            artifact_pairs,
+            raw_core_variant=args.raw_core_variant,
+            core_variant=args.core_variant,
+            score_variant=args.score_variant,
+            source_variant=args.source_variant,
+        )
+        raw_core_variant_summary = summarize_raw_core_variants_from_artifacts(
+            artifact_pairs,
+            core_variant=args.core_variant,
+            source_variant=args.source_variant,
+            component_variant=args.component_variant,
+            score_variant=args.score_variant,
+        )
+        broader_validation_checkpoint = summarize_broader_validation_checkpoint_from_artifacts(
+            artifact_pairs,
+            core_variant=args.core_variant,
+            source_variant=args.source_variant,
+            component_variant=args.component_variant,
+            score_variant=args.score_variant,
+        )
+        baseline_vs_masked_core_steeper_validation = summarize_baseline_vs_masked_core_steeper_from_artifacts(
+            artifact_pairs,
+            core_variant=args.core_variant,
+            source_variant=args.source_variant,
+            component_variant=args.component_variant,
+            score_variant=args.score_variant,
+        )
+        core_variant_summary = summarize_core_variants_from_artifacts(
+            artifact_pairs,
+            raw_core_variant=args.raw_core_variant,
+            source_variant=args.source_variant,
+            component_variant=args.component_variant,
+            score_variant=args.score_variant,
+        )
+    else:
+        source_variant_summary = pd.DataFrame()
+        component_variant_summary = pd.DataFrame()
+        raw_core_variant_summary = pd.DataFrame()
+        broader_validation_checkpoint = pd.DataFrame()
+        baseline_vs_masked_core_steeper_validation = pd.DataFrame()
+        core_variant_summary = pd.DataFrame()
     variant_summary = summarize_score_variants(output)
     ranked_output = build_ranked_case_table(adjusted_output)
     print(_format_table(output))

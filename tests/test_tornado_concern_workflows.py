@@ -11,6 +11,7 @@ import xarray as xr
 from severewx.cli import build_tornado_concern_product as product_cli
 from severewx.cli import build_tornado_concern_public_candidates as public_candidates_cli
 from severewx.cli import build_tornado_concern_spc_comparison as spc_comparison_cli
+from severewx.cli import compare_tornado_concern_component_delta as delta_cli
 from severewx.cli import prepare_tornado_concern_public_prototype as prototype_cli
 from severewx.cli import prototype_tornado_concern_map_styles as style_restart_cli
 from severewx.cli import prototype_tornado_concern_coherent_field as coherent_field_cli
@@ -1651,6 +1652,7 @@ def test_hard_negative_candidate_selector_uses_eval_failures_not_random_dates(tm
         [
             "--eval-csv",
             str(eval_csv),
+            "--use-eval-fallback",
             "--output",
             str(output),
             "--report-csv",
@@ -1664,6 +1666,168 @@ def test_hard_negative_candidate_selector_uses_eval_failures_not_random_dates(tm
     rows = pd.read_csv(report_csv)
     assert list(rows["date"]) == ["2024-05-19"]
     assert "Remove `--dry-run` only after reviewing" in report_md.read_text(encoding="utf-8")
+
+
+def test_hard_negative_selector_prefers_zero_tornado_hail_wind_heavy_dates(tmp_path: Path) -> None:
+    labels_dir = tmp_path / "labels"
+    outputs_dir = tmp_path / "outputs"
+    verification_dir = outputs_dir / "verification"
+    interim_dir = tmp_path / "interim"
+    labels_dir.mkdir()
+    outputs_dir.mkdir()
+    verification_dir.mkdir()
+    interim_dir.mkdir()
+    pd.DataFrame(
+        [
+            *[{"report_id": i, "date": "2024-08-17", "hazard": "wind", "significant": 0} for i in range(30)],
+            *[{"report_id": 100 + i, "date": "2024-08-17", "hazard": "hail", "significant": 0} for i in range(10)],
+            *[{"report_id": 200 + i, "date": "2024-08-18", "hazard": "wind", "significant": 0} for i in range(35)],
+            {"report_id": 300, "date": "2024-08-18", "hazard": "tornado", "significant": 0},
+        ]
+    ).to_parquet(labels_dir / "spc_reports_test.parquet", index=False)
+    pd.DataFrame(
+        [
+            {"date": "2024-08-17", "tornado_outbreak": 0, "significant_tornado_support": 0},
+            {"date": "2024-08-18", "tornado_outbreak": 0, "significant_tornado_support": 0},
+        ]
+    ).to_parquet(labels_dir / "outbreaks_test.parquet", index=False)
+    ready = tmp_path / "ready.txt"
+    ready.write_text("", encoding="utf-8")
+
+    pool, metadata = hard_negative_candidates_cli.build_local_hard_negative_pool(
+        labels_dir=labels_dir,
+        outputs_dir=outputs_dir,
+        verification_dir=verification_dir,
+        interim_dir=interim_dir,
+        ready_dates_file=ready,
+    )
+    selected, counts = hard_negative_candidates_cli.select_local_hard_negative_candidates(pool, target_count=2, min_hail_wind_reports=25)
+
+    assert list(selected["date"]) == ["2024-08-17", "2024-08-18"]
+    assert list(selected["tornado_reports"]) == [0, 1]
+    assert counts["zero_tornado_candidates"] == 1
+    assert counts["one_tornado_fallback_candidates"] == 1
+    assert metadata["unavailable_sources"] == []
+
+
+def test_hard_negative_selector_excludes_outbreak_positive_and_ready_by_default(tmp_path: Path) -> None:
+    labels_dir = tmp_path / "labels"
+    outputs_dir = tmp_path / "outputs"
+    verification_dir = outputs_dir / "verification"
+    interim_dir = tmp_path / "interim"
+    labels_dir.mkdir()
+    outputs_dir.mkdir()
+    verification_dir.mkdir()
+    interim_dir.mkdir()
+    rows = []
+    for date in ["2024-08-17", "2024-08-18", "2024-08-19"]:
+        rows.extend({"report_id": len(rows) + i, "date": date, "hazard": "wind", "significant": 0} for i in range(30))
+    pd.DataFrame(rows).to_parquet(labels_dir / "spc_reports_test.parquet", index=False)
+    pd.DataFrame(
+        [
+            {"date": "2024-08-17", "tornado_outbreak": 1, "significant_tornado_support": 0},
+            {"date": "2024-08-18", "tornado_outbreak": 0, "significant_tornado_support": 1},
+            {"date": "2024-08-19", "tornado_outbreak": 0, "significant_tornado_support": 0},
+        ]
+    ).to_parquet(labels_dir / "outbreaks_test.parquet", index=False)
+    ready = tmp_path / "ready.txt"
+    ready.write_text("2024-08-19\n", encoding="utf-8")
+
+    pool, _metadata = hard_negative_candidates_cli.build_local_hard_negative_pool(
+        labels_dir=labels_dir,
+        outputs_dir=outputs_dir,
+        verification_dir=verification_dir,
+        interim_dir=interim_dir,
+        ready_dates_file=ready,
+    )
+    selected, counts = hard_negative_candidates_cli.select_local_hard_negative_candidates(pool, target_count=5, min_hail_wind_reports=25)
+    included_ready, _ = hard_negative_candidates_cli.select_local_hard_negative_candidates(pool, target_count=5, min_hail_wind_reports=25, exclude_ready=False)
+
+    assert selected.empty
+    assert counts["excluded_outbreak_positive_count"] == 2
+    assert list(included_ready["date"]) == ["2024-08-19"]
+
+
+def test_hard_negative_selector_writes_txt_csv_md_outputs(tmp_path: Path) -> None:
+    labels_dir = tmp_path / "labels"
+    labels_dir.mkdir()
+    pd.DataFrame(
+        [{"report_id": i, "date": "2024-08-17", "hazard": "wind", "significant": 0} for i in range(30)]
+    ).to_parquet(labels_dir / "spc_reports_test.parquet", index=False)
+    pd.DataFrame([{"date": "2024-08-17", "tornado_outbreak": 0, "significant_tornado_support": 0}]).to_parquet(
+        labels_dir / "outbreaks_test.parquet",
+        index=False,
+    )
+    output = tmp_path / "candidates.txt"
+    report_csv = tmp_path / "candidates.csv"
+    report_md = tmp_path / "candidates.md"
+
+    hard_negative_candidates_cli.main(
+        [
+            "--labels-dir",
+            str(labels_dir),
+            "--outputs-dir",
+            str(tmp_path / "outputs"),
+            "--verification-dir",
+            str(tmp_path / "outputs" / "verification"),
+            "--interim-dir",
+            str(tmp_path / "interim"),
+            "--ready-dates-file",
+            str(tmp_path / "ready.txt"),
+            "--target-count",
+            "50",
+            "--output",
+            str(output),
+            "--report-csv",
+            str(report_csv),
+            "--report-md",
+            str(report_md),
+        ]
+    )
+
+    assert output.read_text(encoding="utf-8").splitlines() == ["2024-08-17"]
+    assert pd.read_csv(report_csv).loc[0, "selection_reason"] == "zero_tornado_hail_wind_heavy"
+    assert "total_candidates_found: 1" in report_md.read_text(encoding="utf-8")
+
+
+def test_delta_comparison_report_identifies_fixed_and_worsened_cases(tmp_path: Path) -> None:
+    baseline_csv = tmp_path / "baseline.csv"
+    challenger_csv = tmp_path / "challenger.csv"
+    output_csv = tmp_path / "delta.csv"
+    output_md = tmp_path / "delta.md"
+    pd.DataFrame(
+        [
+            {"init_date": "2024-05-19", "day_rank_within_init": 1, "top_valid_date": "2024-05-22", "top_observed_category": "hail_outbreak_day", "top_minus_best_tornado_score": 0.40, "hail_outranks_tornado_failure": True, "top_day_category_mismatch": True, "non_outbreak_outranks_outbreak_failure": False},
+            {"init_date": "2024-08-08", "day_rank_within_init": 1, "top_valid_date": "2024-08-08", "top_observed_category": "tornado_outbreak_day", "top_minus_best_tornado_score": 0.00, "hail_outranks_tornado_failure": False, "top_day_category_mismatch": False, "non_outbreak_outranks_outbreak_failure": False},
+        ]
+    ).to_csv(baseline_csv, index=False)
+    pd.DataFrame(
+        [
+            {"init_date": "2024-05-19", "day_rank_within_init": 1, "top_valid_date": "2024-05-21", "top_observed_category": "tornado_outbreak_day", "top_minus_best_tornado_score": 0.00, "hail_outranks_tornado_failure": False, "top_day_category_mismatch": False, "non_outbreak_outranks_outbreak_failure": False},
+            {"init_date": "2024-08-08", "day_rank_within_init": 1, "top_valid_date": "2024-08-09", "top_observed_category": "non_outbreak_severe_day", "top_minus_best_tornado_score": 0.10, "hail_outranks_tornado_failure": False, "top_day_category_mismatch": True, "non_outbreak_outranks_outbreak_failure": True},
+        ]
+    ).to_csv(challenger_csv, index=False)
+
+    delta_cli.main(
+        [
+            "--baseline-csv",
+            str(baseline_csv),
+            "--challenger-csv",
+            str(challenger_csv),
+            "--output-csv",
+            str(output_csv),
+            "--output-md",
+            str(output_md),
+        ]
+    )
+
+    rows = pd.read_csv(output_csv)
+    fixed = rows.loc[rows["init_date"].eq("2024-05-19")].iloc[0]
+    worsened = rows.loc[rows["init_date"].eq("2024-08-08")].iloc[0]
+    assert bool(fixed["hail_over_tornado_fixed"])
+    assert bool(fixed["top_day_mismatch_fixed"])
+    assert bool(worsened["non_outbreak_over_outbreak_remained_or_worsened"])
+    assert "checkpoint_acceptance_satisfied" in output_md.read_text(encoding="utf-8")
 
 
 def test_prepare_public_prototype_writes_review_showcase_and_blocked_queue(tmp_path: Path) -> None:
