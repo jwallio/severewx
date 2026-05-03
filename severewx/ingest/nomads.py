@@ -17,6 +17,7 @@ import xarray as xr
 
 from severewx.config import AppSettings
 from severewx.ingest.normalize import normalize_dataset
+from severewx.ingest.stage_gfs import stage_historical_gfs
 from severewx.ingest.storage import (
     load_json_metadata,
     raw_grib_metadata_path,
@@ -31,7 +32,8 @@ from severewx.utils.paths import DataPaths, build_paths
 
 LOGGER = configure_logging()
 SYNTHETIC_SOURCES = {"synthetic", "synthetic_fallback"}
-REALTIME_SOURCES = {"nomads", "local_file", "local_staged_gfs"}
+REMOTE_STAGED_SOURCES = {"aws_recent", "open_meteo_recent", "staged_gfs_auto"}
+REALTIME_SOURCES = {"nomads", "local_file", "local_staged_gfs", *REMOTE_STAGED_SOURCES}
 
 STANDARD_FIELDS = [
     "t2m",
@@ -119,6 +121,14 @@ def _source_origin(source_name: str) -> str:
     if normalized in {"local_file", "local_staged_gfs"}:
         return "local"
     return "remote"
+
+
+def _remote_stage_strategy(source_name: str) -> str:
+    if source_name == "staged_gfs_auto":
+        return "auto"
+    if source_name in {"aws_recent", "open_meteo_recent"}:
+        return source_name
+    raise ValueError(f"unsupported remote staged GFS source: {source_name}")
 
 
 def _processing_scope(settings: AppSettings) -> dict[str, Any]:
@@ -716,6 +726,44 @@ class LocalStagedGFSForecastSource:
         return _validate_provider_result(combined, cycle_summary, settings)
 
 
+@dataclass(slots=True)
+class RemoteStagedGFSForecastSource:
+    """Stage a remote GFS cycle, then load it through the local staged-GFS reader."""
+
+    source_name: str
+
+    def fetch_cycle(self, date: str, cycle: str, settings: AppSettings, paths: DataPaths) -> tuple[xr.Dataset, dict[str, Any]]:
+        strategy = _remote_stage_strategy(self.source_name)
+        report = stage_historical_gfs(
+            start=date,
+            end=date,
+            cycles=[cycle],
+            leads=[int(value) for value in settings.get("ingest.leads", []) or []],
+            output_root=paths.raw / "staged_gfs",
+            paths=paths,
+            settings=settings,
+            source_strategy=strategy,
+            timeout=int(settings.get("ingest.timeout_seconds", 90)),
+            retries=int(settings.get("ingest.retries", 3)),
+            backoff_seconds=int(settings.get("ingest.backoff_seconds", 3)),
+        )
+        if int(report.get("successful_downloads", 0) or 0) <= 0 and int(report.get("skipped_existing_files", 0) or 0) <= 0:
+            raise RuntimeError(f"remote staged GFS source failed to stage any usable leads: {report.get('report_path', '')}")
+        dataset, summary = LocalStagedGFSForecastSource().fetch_cycle(date, cycle, settings, paths)
+        summary["source"] = self.source_name
+        summary["source_mode"] = "real"
+        summary["source_origin"] = "remote"
+        summary["remote_stage_strategy"] = strategy
+        summary["remote_stage_report_path"] = str(report.get("report_path", ""))
+        summary["remote_stage_successful_downloads"] = int(report.get("successful_downloads", 0) or 0)
+        summary["remote_stage_skipped_existing_files"] = int(report.get("skipped_existing_files", 0) or 0)
+        summary["remote_stage_failed_downloads"] = int(report.get("failed_downloads", 0) or 0)
+        summary["remote_stage_successful_downloads_by_source"] = dict(report.get("successful_downloads_by_source", {}) or {})
+        dataset.attrs["source"] = self.source_name
+        dataset.attrs["diagnostic_summary"] = json.dumps(summary)
+        return _validate_provider_result(dataset, summary, settings)
+
+
 def validate_local_staged_gfs_inventory(
     start: str,
     end: str,
@@ -766,6 +814,8 @@ def get_forecast_source(settings: AppSettings) -> ForecastSource:
         return LocalFileForecastSource()
     if source == "nomads":
         return NomadsForecastSource()
+    if source in REMOTE_STAGED_SOURCES:
+        return RemoteStagedGFSForecastSource(source)
     return SyntheticForecastSource()
 
 
@@ -778,6 +828,8 @@ def get_forecast_sources(settings: AppSettings) -> list[ForecastSource]:
             sources.append(LocalFileForecastSource())
         elif source_name == "nomads":
             sources.append(NomadsForecastSource())
+        elif source_name in REMOTE_STAGED_SOURCES:
+            sources.append(RemoteStagedGFSForecastSource(source_name))
         else:
             sources.append(SyntheticForecastSource())
     return sources or [NomadsForecastSource()]

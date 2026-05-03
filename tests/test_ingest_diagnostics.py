@@ -3,6 +3,7 @@ import pandas as pd
 import xarray as xr
 
 from severewx.config import load_settings
+from severewx.ingest import nomads as nomads_ingest
 from severewx.ingest.nomads import FIELD_FILTERS, SyntheticForecastSource
 from severewx.ingest.normalize import normalize_dataset
 from severewx.ingest.storage import raw_grib_metadata_path
@@ -158,6 +159,73 @@ def test_synthetic_ingest_summary_reports_cache_and_mode(tmp_path) -> None:
     assert summary["source_mode"] == "synthetic"
     assert summary["cache_overview"]["cache_hits"] == 0
     assert not raw_grib_metadata_path(paths, "2026-04-09", "00", 0).exists()
+
+
+def test_ingest_can_fail_over_from_nomads_to_remote_staged_gfs(tmp_path, monkeypatch) -> None:
+    settings = load_settings()
+    settings.raw["paths"]["root"] = str(tmp_path)
+    settings.raw["paths"]["data"] = str(tmp_path / "data")
+    settings.raw["paths"]["raw"] = str(tmp_path / "data" / "raw")
+    settings.raw["paths"]["interim"] = str(tmp_path / "data" / "interim")
+    settings.raw["paths"]["outputs"] = str(tmp_path / "data" / "outputs")
+    settings.raw["ingest"]["source"] = "nomads"
+    settings.raw["ingest"]["failover_sources"] = ["aws_recent"]
+    settings.raw["ingest"]["allow_synthetic_fallback"] = False
+    settings.raw["ingest"]["leads"] = [0, 6]
+    settings.raw["ingest"]["allow_partial_cycle"] = False
+    paths = build_paths(settings)
+
+    def fail_nomads(self, date, cycle, settings, paths):
+        raise RuntimeError("nomads 500")
+
+    def fake_stage_historical_gfs(
+        *,
+        start,
+        end,
+        cycles,
+        leads,
+        output_root,
+        paths: object,
+        settings,
+        source_strategy,
+        timeout,
+        retries,
+        backoff_seconds,
+    ):
+        assert start == "2026-04-09"
+        assert end == "2026-04-09"
+        assert cycles == ["00"]
+        assert leads == [0, 6]
+        assert source_strategy == "aws_recent"
+        return {
+            "report_path": str(paths.interim / "staged_gfs_download_2026-04-09_2026-04-09_00.json"),
+            "successful_downloads": 2,
+            "skipped_existing_files": 0,
+            "failed_downloads": 0,
+            "successful_downloads_by_source": {"aws_recent": 2},
+        }
+
+    def fake_local_staged_fetch(self, date, cycle, settings, paths):
+        dataset, summary = SyntheticForecastSource().fetch_cycle(date, cycle, settings, paths)
+        summary["source"] = "local_staged_gfs"
+        summary["source_mode"] = "real"
+        dataset.attrs["source"] = "local_staged_gfs"
+        return dataset, summary
+
+    monkeypatch.setattr(nomads_ingest.NomadsForecastSource, "fetch_cycle", fail_nomads)
+    monkeypatch.setattr(nomads_ingest, "stage_historical_gfs", fake_stage_historical_gfs)
+    monkeypatch.setattr(nomads_ingest.LocalStagedGFSForecastSource, "fetch_cycle", fake_local_staged_fetch)
+
+    output = nomads_ingest.ingest_forecast_cycle("2026-04-09", "00", settings=settings)
+    summary = pd.read_json(paths.interim / "ingest_summary_2026-04-09_00.json", typ="series")
+
+    assert output.exists()
+    assert summary["source"] == "aws_recent"
+    assert summary["source_mode"] == "real"
+    assert summary["real_ingest_available"]
+    assert summary["attempted_sources"] == ["nomads", "aws_recent"]
+    assert summary["provider_failures"] == [{"source": "nomads", "error": "nomads 500"}]
+    assert summary["remote_stage_strategy"] == "aws_recent"
 
 
 def test_grib_filters_disambiguate_surface_cape_and_cin() -> None:
