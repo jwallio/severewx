@@ -553,7 +553,7 @@ def test_build_outlook_products_records_auto_display_presets(tmp_path: Path, mon
         metadata = pd.read_json(outdir / f"tornado_concern_init_{date}_00z_valid_{date}.json", typ="series")
         presets[date] = metadata["display_preset_effective"]
         assert metadata["map_domain"] == "regional"
-        assert int(metadata["contour_label_count"]) >= 0
+        assert int(metadata["contour_label_count"]) == 0
     assert presets == {"2024-04-18": "weak", "2024-05-21": "standard", "2024-05-24": "broad"}
 
 

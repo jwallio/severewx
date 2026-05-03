@@ -10,7 +10,6 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.patheffects as path_effects
 from matplotlib.colors import BoundaryNorm, ListedColormap
 import numpy as np
 import pandas as pd
@@ -406,39 +405,6 @@ def _set_map_extent(ax: Any, extent: tuple[float, float, float, float]) -> None:
     ax.set_ylim(lat_min, lat_max)
 
 
-def _add_peak_band_label(
-    ax: Any,
-    lon_values: np.ndarray,
-    lat_values: np.ndarray,
-    values: np.ndarray,
-    label_levels: tuple[float, ...],
-    draw_kwargs: dict[str, Any],
-) -> None:
-    """Ensure compact high-risk maxima get one readable label when contour labels are skipped."""
-    if not label_levels or not np.isfinite(values).any():
-        return
-    peak_level = max(label_levels)
-    peak_mask = np.asarray(values, dtype=float) >= peak_level
-    if not peak_mask.any():
-        return
-    peak_values = np.where(peak_mask, values, np.nan)
-    row, col = np.unravel_index(int(np.nanargmax(peak_values)), peak_values.shape)
-    text_kwargs = {key: value for key, value in draw_kwargs.items() if key == "transform"}
-    label = ax.text(
-        float(lon_values[col]),
-        float(lat_values[row]),
-        f"{int(round(peak_level * 100))}%",
-        ha="center",
-        va="center",
-        fontsize=8.0,
-        fontweight="bold",
-        color="#3f0808",
-        zorder=7,
-        **text_kwargs,
-    )
-    label.set_path_effects([path_effects.withStroke(linewidth=3.0, foreground="white")])
-
-
 def _prediction_artifact_for_cycle(outputs_dir: Path, date: str, cycle: str) -> Path | None:
     exact = outputs_dir / f"forecast_products_{date}_{cycle}.nc"
     if exact.exists():
@@ -800,7 +766,7 @@ def _render_product_map(
         )
         label_levels = _visible_label_levels(display_values, display_preset=resolved_preset)
         if label_levels:
-            contour_set = ax.contour(
+            ax.contour(
                 display_lon,
                 display_lat,
                 display_values,
@@ -810,18 +776,6 @@ def _render_product_map(
                 alpha=0.75,
                 **draw_kwargs,
             )
-            labels = ax.clabel(
-                contour_set,
-                contour_set.levels,
-                inline=True,
-                inline_spacing=4,
-                fontsize=7.5,
-                fmt={level: f"{int(round(level * 100))}%" for level in contour_set.levels},
-                colors="#2d0505",
-            )
-            label_count = len(labels)
-            for label in labels:
-                label.set_path_effects([path_effects.withStroke(linewidth=2.4, foreground="white")])
     elif map_style == "contours":
         public_display_values = _public_display_concern_field(values)
         extent_values = public_display_values
@@ -843,7 +797,7 @@ def _render_product_map(
         )
         label_levels = _visible_label_levels(display_values)
         if label_levels:
-            contour_set = ax.contour(
+            ax.contour(
                 display_lon,
                 display_lat,
                 display_values,
@@ -853,19 +807,6 @@ def _render_product_map(
                 alpha=0.75,
                 **draw_kwargs,
             )
-            labels = ax.clabel(
-                contour_set,
-                contour_set.levels,
-                inline=True,
-                inline_spacing=5,
-                fontsize=7.5,
-                fmt={level: f"{int(round(level * 100))}%" for level in contour_set.levels},
-                colors="#4a0b0b",
-            )
-            label_count = len(labels)
-            for label in labels:
-                label.set_path_effects([path_effects.withStroke(linewidth=2.6, foreground="white")])
-            _add_peak_band_label(ax, display_lon, display_lat, display_values, label_levels, draw_kwargs)
     else:
         cmap = ListedColormap(list(PRODUCT_COLORS), name="tornado_concern_product")
         norm = BoundaryNorm(PRODUCT_BINS, len(PRODUCT_COLORS), clip=True)
