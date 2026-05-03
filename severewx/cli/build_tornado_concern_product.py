@@ -18,6 +18,7 @@ import xarray as xr
 from severewx.cli.tornado_concern_eval import _latest_forecast_metadata_for_date, _latest_prediction_for_date
 from severewx.cli.tornado_concern_product_audit import audit_tornado_concern_product
 from severewx.config import load_settings
+from severewx.models.forecast_consensus import CONSENSUS_FIELD, consensus_metadata_path, consensus_product_path
 from severewx.models.tornado_concern import (
     envelope_tornado_concern_grid,
     tornado_environment_outlook_grid,
@@ -50,6 +51,7 @@ PUBLIC_DISPLAY_MIN_VISIBLE_CELLS_GE_05 = 1
 OUTLOOK_DISPLAY_MIN_OBJECT_CELLS = 24
 OUTLOOK_DISPLAY_PRESETS = {"auto", "weak", "standard", "broad"}
 DEFAULT_PRODUCT_FIELD = "tornado_environment_outlook_hybrid"
+DEFAULT_CONSENSUS_PRODUCT_FIELD = CONSENSUS_FIELD
 DEFAULT_PRODUCT_MAP_STYLE = "outlook"
 DEFAULT_PRODUCT_MAP_DOMAIN = "regional"
 OUTLOOK_PRESET_OBJECT_CELLS = {
@@ -412,11 +414,33 @@ def _prediction_artifact_for_cycle(outputs_dir: Path, date: str, cycle: str) -> 
     return _latest_prediction_for_date(outputs_dir, date)
 
 
+def _consensus_artifact_for_cycle(outputs_dir: Path, date: str, cycle: str) -> Path | None:
+    exact = consensus_product_path(outputs_dir, date, cycle)
+    return exact if exact.exists() else None
+
+
+def _select_prediction_artifact(outputs_dir: Path, date: str, cycle: str, field_name: str) -> tuple[Path | None, str]:
+    if field_name == DEFAULT_PRODUCT_FIELD:
+        consensus = _consensus_artifact_for_cycle(outputs_dir, date, cycle)
+        if consensus is not None:
+            return consensus, DEFAULT_CONSENSUS_PRODUCT_FIELD
+    if field_name == DEFAULT_CONSENSUS_PRODUCT_FIELD:
+        return _consensus_artifact_for_cycle(outputs_dir, date, cycle), field_name
+    return _prediction_artifact_for_cycle(outputs_dir, date, cycle), field_name
+
+
 def _forecast_metadata_for_cycle(outputs_dir: Path, date: str, cycle: str) -> Path | None:
     exact = outputs_dir / f"forecast_metadata_{date}_{cycle}.json"
     if exact.exists():
         return exact
     return _latest_forecast_metadata_for_date(outputs_dir, date)
+
+
+def _metadata_for_prediction_artifact(outputs_dir: Path, date: str, cycle: str, prediction_path: Path) -> Path | None:
+    if prediction_path.name == consensus_product_path(outputs_dir, date, cycle).name:
+        exact = consensus_metadata_path(outputs_dir, date, cycle)
+        return exact if exact.exists() else None
+    return _forecast_metadata_for_cycle(outputs_dir, date, cycle)
 
 
 def _load_json(path: Path | None) -> dict[str, Any]:
@@ -595,6 +619,8 @@ def _product_variant(field_name: str) -> str:
         return "environment_outlook_v2"
     if field_name == "tornado_environment_outlook_hybrid":
         return "environment_outlook_hybrid"
+    if field_name == DEFAULT_CONSENSUS_PRODUCT_FIELD:
+        return "environment_outlook_hybrid_consensus"
     return "baseline"
 
 
@@ -718,6 +744,36 @@ def _display_readiness_audit(display_stats: dict[str, Any], *, map_style: str) -
     }
 
 
+def _consensus_readiness_audit(dataset: xr.Dataset, field_name: str) -> dict[str, Any]:
+    if field_name != DEFAULT_CONSENSUS_PRODUCT_FIELD:
+        return {"status": "skipped", "public_ready": True, "failure_reasons": ""}
+    failures: list[str] = []
+    if "model_agreement_count" not in dataset:
+        failures.append("consensus_missing_agreement_count")
+        max_signal_agreement = 0
+    else:
+        field_values = _aggregate_grid(dataset, field_name)
+        agreement_values = _aggregate_grid(dataset, "model_agreement_count")
+        if field_values is None or agreement_values is None:
+            max_signal_agreement = 0
+        else:
+            signal_mask = np.asarray(field_values, dtype=float) >= CONTOUR_DISPLAY_MIN_THRESHOLD
+            max_signal_agreement = int(np.nanmax(np.where(signal_mask, agreement_values, 0.0))) if signal_mask.any() else 0
+        if max_signal_agreement < 2:
+            failures.append("consensus_less_than_two_supporting_sources")
+    confidence_values = _aggregate_grid(dataset, "consensus_confidence_modifier")
+    min_confidence_modifier = float(np.nanmin(confidence_values)) if confidence_values is not None and confidence_values.size else float("nan")
+    mean_confidence_modifier = float(np.nanmean(confidence_values)) if confidence_values is not None and confidence_values.size else float("nan")
+    return {
+        "status": "ok" if not failures else "flagged",
+        "public_ready": not failures,
+        "failure_reasons": ";".join(failures),
+        "max_signal_agreement_count": max_signal_agreement,
+        "min_confidence_modifier": min_confidence_modifier,
+        "mean_confidence_modifier": mean_confidence_modifier,
+    }
+
+
 def _format_valid_time(value: str) -> str:
     return pd.Timestamp(value).strftime("%Y-%m-%d %HZ")
 
@@ -745,7 +801,7 @@ def _default_summary_text(stats: dict[str, Any], *, field_name: str = "tornado_c
     label = valid_label or f"{start} 00-24 UTC"
     peak = float(stats.get("max_tornado_concern_prob", float("nan")))
     peak_date = str(stats.get("top_valid_date", "")) or "unknown"
-    if field_name in {"tornado_environment_outlook", "tornado_environment_outlook_v2", "tornado_environment_outlook_hybrid"}:
+    if field_name in {"tornado_environment_outlook", "tornado_environment_outlook_v2", "tornado_environment_outlook_hybrid", DEFAULT_CONSENSUS_PRODUCT_FIELD}:
         return (
             "This 24-hour prototype shows an ingredient-only tornado environment outlook from saved forecast fields. "
             f"It avoids the learned tornado-concern gridpoint field and highlights coherent overlap of significant-tornado support, "
@@ -898,7 +954,7 @@ def _render_product_map(
     colorbar.ax.set_xticklabels([f"{int(value * 100)}%" for value in colorbar_ticks], fontsize=8)
     colorbar_label = (
         "Ingredient-only tornado environment outlook"
-        if field_name in {"tornado_environment_outlook", "tornado_environment_outlook_v2", "tornado_environment_outlook_hybrid"}
+        if field_name in {"tornado_environment_outlook", "tornado_environment_outlook_v2", "tornado_environment_outlook_hybrid", DEFAULT_CONSENSUS_PRODUCT_FIELD}
         else "Baseline tornado concern"
     )
     colorbar.set_label(colorbar_label, fontsize=9)
@@ -996,7 +1052,7 @@ def build_product_bundle(
     valid_date: str | None = None,
     valid_start: str | None = None,
     valid_end: str | None = None,
-    field_name: str = "tornado_concern_prob",
+    field_name: str = DEFAULT_PRODUCT_FIELD,
     outdir: Path,
     title: str | None = None,
     summary_text: str | None = None,
@@ -1012,10 +1068,10 @@ def build_product_bundle(
     settings = settings or load_settings()
     paths = paths or build_paths(settings)
     cycle = _normalize_cycle(cycle)
-    prediction_path = _prediction_artifact_for_cycle(paths.outputs, date, cycle)
+    prediction_path, field_name = _select_prediction_artifact(paths.outputs, date, cycle, field_name)
     if prediction_path is None:
         raise FileNotFoundError(f"missing tornado-concern forecast artifact for {date} {cycle}Z")
-    metadata_path = _forecast_metadata_for_cycle(paths.outputs, date, cycle)
+    metadata_path = _metadata_for_prediction_artifact(paths.outputs, date, cycle, prediction_path)
     forecast_metadata = _load_json(metadata_path)
     with xr.open_dataset(prediction_path) as dataset:
         dataset = _derive_product_field_dataset(dataset, field_name)
@@ -1068,6 +1124,7 @@ def build_product_bundle(
         "tornado_environment_outlook",
         "tornado_environment_outlook_v2",
         "tornado_environment_outlook_hybrid",
+        DEFAULT_CONSENSUS_PRODUCT_FIELD,
     }:
         artifact_audit_result = {
             "date": date,
@@ -1086,15 +1143,21 @@ def build_product_bundle(
             else {"status": "skipped", "public_ready": False, "failure_reasons": "audit_skipped"}
         )
     display_audit_result = _display_readiness_audit(display_stats, map_style=map_style)
+    consensus_audit_result = _consensus_readiness_audit(valid_dataset, field_name)
     combined_failure_reasons = ";".join(
         reason
         for reason in [
             str(artifact_audit_result.get("failure_reasons", "") or ""),
             str(display_audit_result.get("failure_reasons", "") or ""),
+            str(consensus_audit_result.get("failure_reasons", "") or ""),
         ]
         if reason
     )
-    combined_public_ready = bool(artifact_audit_result.get("public_ready", False)) and bool(display_audit_result.get("public_ready", False))
+    combined_public_ready = (
+        bool(artifact_audit_result.get("public_ready", False))
+        and bool(display_audit_result.get("public_ready", False))
+        and bool(consensus_audit_result.get("public_ready", True))
+    )
     product_metadata: dict[str, Any] = {
         "date": date,
         "init_date": date,
@@ -1135,13 +1198,14 @@ def build_product_bundle(
         "publication_status": "public_candidate" if combined_public_ready else "internal_review_only",
         "product_audit": artifact_audit_result,
         "display_audit": display_audit_result,
+        "consensus_audit": consensus_audit_result,
         **render_metadata,
         "ingredient_diagnostics": ingredient_diagnostics,
         "reference_design_notes": [
             "CSU-MLP-style ingredient overlap supports the public tornado-environment outlook.",
             "TORP/TorNet-style object filtering suppresses isolated display specks without altering source grid values.",
         ]
-        if field_name in {"tornado_environment_outlook", "tornado_environment_outlook_v2", "tornado_environment_outlook_hybrid"}
+        if field_name in {"tornado_environment_outlook", "tornado_environment_outlook_v2", "tornado_environment_outlook_hybrid", DEFAULT_CONSENSUS_PRODUCT_FIELD}
         else [],
         **stats,
         **display_stats,
@@ -1149,6 +1213,18 @@ def build_product_bundle(
     if forecast_metadata:
         product_metadata["forecast_run_summary"] = forecast_metadata.get("run_summary", {})
         product_metadata["forecast_ingest_summary"] = forecast_metadata.get("ingest_summary", {})
+        product_metadata["forecast_consensus_summary"] = {
+            key: forecast_metadata.get(key)
+            for key in [
+                "included_sources",
+                "excluded_sources",
+                "source_models",
+                "reference_source",
+                "primary_model_code_map",
+                "time_weights",
+            ]
+            if key in forecast_metadata
+        }
 
     summary_rows = [
         ("title", effective_title),
@@ -1173,6 +1249,8 @@ def build_product_bundle(
         ("public_ready", str(product_metadata["public_ready"])),
         ("audit_status", product_metadata["audit_status"]),
         ("failure_reasons", product_metadata["failure_reasons"] or "none"),
+        ("consensus_sources", ",".join(product_metadata.get("forecast_consensus_summary", {}).get("included_sources", []) or [])),
+        ("consensus_max_signal_agreement", product_metadata.get("consensus_audit", {}).get("max_signal_agreement_count", "")),
         ("valid_window", product_metadata["valid_period_label"]),
         ("selected_valid_times", ",".join(str(value) for value in stats.get("valid_times", []))),
         ("top_valid_date", stats.get("top_valid_date", "")),
@@ -1229,6 +1307,7 @@ def main(argv: list[str] | None = None) -> None:
             "tornado_environment_outlook",
             "tornado_environment_outlook_v2",
             "tornado_environment_outlook_hybrid",
+            DEFAULT_CONSENSUS_PRODUCT_FIELD,
         ],
         default=DEFAULT_PRODUCT_FIELD,
         help="Forecast field to render. Baseline keeps tornado_concern_prob; outlook fields are ingredient-only prototypes.",

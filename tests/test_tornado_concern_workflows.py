@@ -26,6 +26,7 @@ from severewx.cli import tornado_concern_field_diagnostics as field_diagnostics_
 from severewx.cli import tornado_concern_product_audit as product_audit_cli
 from severewx.cli import tornado_concern_product_quality as product_quality_cli
 from severewx.config import AppSettings
+from severewx.models.forecast_consensus import CONSENSUS_FIELD
 from severewx.models.tornado_concern import coherent_tornado_concern_grid, envelope_tornado_concern_grid
 
 
@@ -175,6 +176,92 @@ def test_build_tornado_concern_product_defaults_to_hybrid_outlook_product(tmp_pa
     assert metadata["map_style"] == "outlook"
     assert metadata["map_domain"] == "regional"
     assert metadata["display_preset_requested"] == "auto"
+
+
+def test_build_tornado_concern_product_prefers_consensus_artifact_when_present(tmp_path: Path, monkeypatch) -> None:
+    paths = _workflow_paths(tmp_path)
+    for path in [paths.outputs, paths.verification, paths.labels, paths.interim]:
+        path.mkdir(parents=True, exist_ok=True)
+    values = np.full((1, 5, 5), 0.10, dtype=np.float32)
+    xr.Dataset(
+        {
+            CONSENSUS_FIELD: (("time", "lat", "lon"), values),
+            "model_agreement_count": (("time", "lat", "lon"), np.full_like(values, 2.0)),
+            "consensus_confidence_modifier": (("time", "lat", "lon"), np.full_like(values, 0.9)),
+        },
+        coords={
+            "time": pd.to_datetime(["2024-04-26T00:00:00"]),
+            "lat": [33.0, 34.0, 35.0, 36.0, 37.0],
+            "lon": [-100.0, -99.0, -98.0, -97.0, -96.0],
+        },
+    ).to_netcdf(paths.outputs / "forecast_consensus_2024-04-26_00.nc")
+    (paths.outputs / "forecast_consensus_metadata_2024-04-26_00.json").write_text(
+        json.dumps(
+            {
+                "included_sources": ["hrrr_recent", "rap_recent", "aws_recent"],
+                "reference_source": "aws_recent",
+                "primary_model_code_map": {"aws_recent": 1, "hrrr_recent": 2, "rap_recent": 3},
+                "time_weights": [{"lead_hour": 0, "applied_weights": {"hrrr_recent": 0.45, "rap_recent": 0.25, "aws_recent": 0.15}}],
+                "ingest_summary": {"source": "forecast_consensus", "source_mode": "real"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(product_cli, "load_settings", lambda: AppSettings(raw={}))
+    monkeypatch.setattr(product_cli, "build_paths", lambda _settings: paths)
+
+    metadata = product_cli.build_product_bundle(
+        date="2024-04-26",
+        cycle="00",
+        outdir=tmp_path / "product",
+        map_style="outlook",
+        map_domain="conus",
+        overwrite=True,
+    )
+
+    assert metadata["source_forecast_artifact_path"].endswith("forecast_consensus_2024-04-26_00.nc")
+    assert metadata["field_name"] == CONSENSUS_FIELD
+    assert metadata["publication_status"] == "public_candidate"
+    assert metadata["consensus_audit"]["max_signal_agreement_count"] == 2
+    assert metadata["forecast_consensus_summary"]["included_sources"] == ["hrrr_recent", "rap_recent", "aws_recent"]
+
+
+def test_build_tornado_concern_product_marks_single_source_consensus_internal_only(tmp_path: Path, monkeypatch) -> None:
+    paths = _workflow_paths(tmp_path)
+    for path in [paths.outputs, paths.verification, paths.labels, paths.interim]:
+        path.mkdir(parents=True, exist_ok=True)
+    values = np.full((1, 5, 5), 0.10, dtype=np.float32)
+    xr.Dataset(
+        {
+            CONSENSUS_FIELD: (("time", "lat", "lon"), values),
+            "model_agreement_count": (("time", "lat", "lon"), np.ones_like(values)),
+            "consensus_confidence_modifier": (("time", "lat", "lon"), np.full_like(values, 0.4)),
+        },
+        coords={
+            "time": pd.to_datetime(["2024-04-26T00:00:00"]),
+            "lat": [33.0, 34.0, 35.0, 36.0, 37.0],
+            "lon": [-100.0, -99.0, -98.0, -97.0, -96.0],
+        },
+    ).to_netcdf(paths.outputs / "forecast_consensus_2024-04-26_00.nc")
+    (paths.outputs / "forecast_consensus_metadata_2024-04-26_00.json").write_text(
+        json.dumps({"included_sources": ["aws_recent"], "ingest_summary": {"source": "forecast_consensus", "source_mode": "real"}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(product_cli, "load_settings", lambda: AppSettings(raw={}))
+    monkeypatch.setattr(product_cli, "build_paths", lambda _settings: paths)
+
+    metadata = product_cli.build_product_bundle(
+        date="2024-04-26",
+        cycle="00",
+        outdir=tmp_path / "product",
+        map_style="outlook",
+        map_domain="conus",
+        overwrite=True,
+    )
+
+    assert not metadata["public_ready"]
+    assert metadata["publication_status"] == "internal_review_only"
+    assert "consensus_less_than_two_supporting_sources" in metadata["failure_reasons"]
 
 
 def test_prototype_tornado_concern_map_styles_generates_comparison_board(tmp_path: Path, monkeypatch) -> None:
