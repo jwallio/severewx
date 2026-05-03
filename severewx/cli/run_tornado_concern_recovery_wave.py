@@ -46,6 +46,106 @@ def _select_dates_file_rows(rows: pd.DataFrame, dates: list[str]) -> pd.DataFram
     return selected.sort_values(["_requested_order", "date"], kind="mergesort").drop(columns=["_requested_order"]).drop_duplicates(subset=["date"], keep="first").reset_index(drop=True)
 
 
+def _normalize_date(value: str) -> str | None:
+    parsed = pd.to_datetime(str(value).strip(), errors="coerce")
+    if pd.isna(parsed):
+        return None
+    return parsed.strftime("%Y-%m-%d")
+
+
+def _artifact_status_for_date(paths: Any, date: str) -> dict[str, Any]:
+    outputs_dir = Path(paths.outputs)
+    verification_dir = Path(paths.verification)
+    staged_root = outputs_dir.parent / "raw" / "staged_gfs" / date / "00"
+    staged_files = sorted(path for path in staged_root.glob("*") if path.is_file()) if staged_root.exists() else []
+    forecast_present = any(outputs_dir.glob(f"forecast_products_{date}_*.nc"))
+    forecast_metadata_present = any(outputs_dir.glob(f"forecast_metadata_{date}_*.json"))
+    verification_present = (verification_dir / f"{date}_verification.json").exists()
+    return {
+        "staged_input_dir_present": staged_root.exists(),
+        "staged_input_file_count": len(staged_files),
+        "forecast_artifacts_present": forecast_present,
+        "forecast_metadata_present": forecast_metadata_present,
+        "verification_artifacts_present": verification_present,
+        "real_ingest_confirmed": False,
+        "final_ready": False,
+        "already_ready": bool(forecast_present and verification_present),
+        "has_forecast_artifact": bool(forecast_present),
+        "has_verification_artifact": bool(verification_present),
+    }
+
+
+def _hard_negative_row_from_dates_file(paths: Any, candidate_rows: pd.DataFrame, date: str) -> dict[str, Any]:
+    matched = (
+        candidate_rows.loc[candidate_rows["date"].astype(str).eq(date)].iloc[0].to_dict()
+        if not candidate_rows.empty and "date" in candidate_rows.columns and candidate_rows["date"].astype(str).eq(date).any()
+        else {}
+    )
+    source_priority_tier = str(matched.get("priority_tier", ""))
+    row = dict(matched)
+    row.update(
+        {
+            "date": date,
+            "priority_tier": "hard_negative",
+            "priority_sort_key": 99,
+            "failure_reason": "hard_negative_dates_file",
+            "real_ingest_failure_detail": "dates_file_authoritative_hard_negative",
+            "selection_source": "dates_file",
+            **_artifact_status_for_date(paths, date),
+        }
+    )
+    row.update(
+        {
+            "source_priority_tier": source_priority_tier,
+            "priority_tier": "hard_negative",
+            "selection_source": "dates_file",
+            "failure_reason": "hard_negative_dates_file",
+            "real_ingest_failure_detail": "dates_file_authoritative_hard_negative",
+        }
+    )
+    row["already_ready"] = bool(row.get("final_ready", False)) or bool(
+        row.get("forecast_artifacts_present", False) and row.get("verification_artifacts_present", False)
+    )
+    row["has_forecast_artifact"] = bool(row.get("forecast_artifacts_present", False))
+    row["has_verification_artifact"] = bool(row.get("verification_artifacts_present", False))
+    return row
+
+
+def _select_hard_negative_dates_file_rows(
+    paths: Any,
+    candidate_rows: pd.DataFrame,
+    dates: list[str],
+    *,
+    start: str | None = None,
+    end: str | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    start_norm = _normalize_date(start) if start else None
+    end_norm = _normalize_date(end) if end else None
+    selected_rows: list[dict[str, Any]] = []
+    skipped_rows: list[dict[str, str]] = []
+    seen_dates: set[str] = set()
+    for requested in dates:
+        date = _normalize_date(requested)
+        if date is None:
+            skipped_rows.append({"date": str(requested), "skipped_reason": "invalid_date"})
+            continue
+        if date in seen_dates:
+            skipped_rows.append({"date": date, "skipped_reason": "duplicate_date"})
+            continue
+        seen_dates.add(date)
+        if start_norm and date < start_norm:
+            skipped_rows.append({"date": date, "skipped_reason": "before_start"})
+            continue
+        if end_norm and date > end_norm:
+            skipped_rows.append({"date": date, "skipped_reason": "after_end"})
+            continue
+        selected_rows.append(_hard_negative_row_from_dates_file(paths, candidate_rows, date))
+    return (
+        pd.DataFrame(selected_rows),
+        pd.DataFrame(skipped_rows, columns=["date", "skipped_reason"]),
+    )
+
+
 def select_wave_candidates(rows: pd.DataFrame, *, wave: str, max_dates: int | None = None) -> pd.DataFrame:
     if wave not in WAVE_CHOICES:
         raise ValueError(f"unsupported wave: {wave}")
@@ -150,9 +250,11 @@ def write_wave_summary_markdown(
     dry_run: bool,
     selected: pd.DataFrame,
     summary_frame: pd.DataFrame,
+    skipped: pd.DataFrame | None = None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     preview = selected.loc[:, ["date", "priority_tier"]].head(12) if not selected.empty else pd.DataFrame(columns=["date", "priority_tier"])
+    skipped_frame = skipped if skipped is not None else pd.DataFrame(columns=["date", "skipped_reason"])
     markdown = "\n".join(
         [
             "# Tornado Concern Recovery Wave",
@@ -182,6 +284,10 @@ def write_wave_summary_markdown(
             "## Planned Date Preview",
             "",
             _markdown_table(preview, ["date", "priority_tier"]),
+            "",
+            "## Skipped Dates",
+            "",
+            _markdown_table(skipped_frame, ["date", "skipped_reason"]),
         ]
     )
     path.write_text(markdown + "\n", encoding="utf-8")
@@ -210,8 +316,19 @@ def main(argv: list[str] | None = None) -> None:
         end=args.end,
         priority_tier="all",
     )
+    skipped = pd.DataFrame(columns=["date", "skipped_reason"])
     if args.dates_file:
-        selected = _select_dates_file_rows(all_rows, _read_dates_file(Path(args.dates_file)))
+        requested_dates = _read_dates_file(Path(args.dates_file))
+        if args.wave == "hard_negative":
+            selected, skipped = _select_hard_negative_dates_file_rows(
+                paths,
+                all_rows,
+                requested_dates,
+                start=args.start,
+                end=args.end,
+            )
+        else:
+            selected = _select_dates_file_rows(all_rows, requested_dates)
         if args.max_dates is not None:
             selected = selected.head(int(args.max_dates))
     else:
@@ -258,6 +375,7 @@ def main(argv: list[str] | None = None) -> None:
         dry_run=bool(args.dry_run),
         selected=selected,
         summary_frame=summary_frame,
+        skipped=skipped,
     )
     if combined_rows:
         combined = pd.concat(combined_rows, ignore_index=True)

@@ -105,6 +105,17 @@ def test_evaluate_tornado_concern_for_artifacts_scores_outbreak_day_higher(tmp_p
     assert summary.loc[0, "top_valid_date"] == "2024-04-26"
     assert float(summary.loc[0, "top_learned_tornado_concern_prob"]) == 0.6
 
+    v1_result = evaluate_tornado_concern_for_artifacts(
+        prediction_path,
+        verification_path,
+        init_date="2024-04-26",
+        score_variant="v1_triage",
+    )
+    assert float(v1_result.loc[v1_result["valid_date"] == "2024-04-26", "variant_penalty_term"].iloc[0]) == 1.0
+    assert float(v1_result.loc[v1_result["valid_date"] == "2024-04-27", "variant_penalty_term"].iloc[0]) == pytest.approx(
+        np.exp(-2.5)
+    )
+
 
 def test_select_real_case_init_dates_prefers_real_tornado_relevant_windows(tmp_path: Path) -> None:
     outputs_dir = tmp_path / "outputs"
@@ -1121,7 +1132,15 @@ def test_score_variant_cli_is_accepted_and_baseline_remains_default(tmp_path: Pa
     module.main()
     emphasis_ranked = pd.read_csv(emphasis_csv)
 
-    assert SCORE_VARIANTS == ["baseline", "tornado_emphasis", "capped_broad", "learned_gated", "hybrid", "lead_time_calibrated"]
+    assert SCORE_VARIANTS == [
+        "baseline",
+        "tornado_emphasis",
+        "capped_broad",
+        "learned_gated",
+        "hybrid",
+        "lead_time_calibrated",
+        "v1_triage",
+    ]
     assert set(default_ranked["variant_name"]) == {"baseline"}
     assert set(emphasis_ranked["variant_name"]) == {"tornado_emphasis"}
 
@@ -1200,6 +1219,80 @@ def test_learned_gated_reduces_learned_term_override_when_core_disagrees() -> No
 
     assert float(gated.loc[0, "variant_penalty_term"]) < 1.0
     assert float(gated.loc[0, "tornado_concern_score"]) < float(baseline.loc[0, "tornado_concern_score"])
+
+
+def test_v1_triage_demotes_later_hail_maximum_below_day0_tornado_signal() -> None:
+    frame = pd.DataFrame(
+        [
+            {
+                "init_date": "2024-05-26",
+                "valid_date": "2024-05-26",
+                "observed_category": "tornado_outbreak_day",
+                "observed_tornado_outbreak": 1,
+                "observed_significant_tornado_support": 0,
+                "raw_base_score_before_variant": 9.10,
+                "base_score": 9.10,
+                "tornado_signal": 0.60,
+                "broad_signal": 1.25,
+                "discriminator": 0.324,
+                "learned_tornado_concern_prob": 0.01,
+                "is_real_ingest": True,
+            },
+            {
+                "init_date": "2024-05-26",
+                "valid_date": "2024-05-27",
+                "observed_category": "hail_outbreak_day",
+                "observed_tornado_outbreak": 0,
+                "observed_significant_tornado_support": 0,
+                "raw_base_score_before_variant": 21.90,
+                "base_score": 21.90,
+                "tornado_signal": 0.81,
+                "broad_signal": 1.30,
+                "discriminator": 0.384,
+                "learned_tornado_concern_prob": 0.01,
+                "is_real_ingest": True,
+            },
+        ]
+    )
+
+    baseline = summarize_case_windows(_apply_score_variant_to_frame(frame, "baseline"))
+    v1 = summarize_case_windows(_apply_score_variant_to_frame(frame, "v1_triage"))
+
+    assert bool(baseline.loc[0, "hail_outranks_tornado_failure"])
+    assert v1.loc[0, "top_valid_date"] == "2024-05-26"
+    assert not bool(v1.loc[0, "hail_outranks_tornado_failure"])
+
+
+def test_earliest_close_preference_resolves_v1_near_tie_to_earlier_valid_day() -> None:
+    frame = pd.DataFrame(
+        [
+            {
+                "init_date": "2024-05-19",
+                "valid_date": "2024-05-19",
+                "observed_category": "tornado_outbreak_day",
+                "observed_tornado_outbreak": 1,
+                "observed_significant_tornado_support": 0,
+                "tornado_concern_score": 0.1160,
+                "is_real_ingest": True,
+            },
+            {
+                "init_date": "2024-05-19",
+                "valid_date": "2024-05-22",
+                "observed_category": "hail_outbreak_day",
+                "observed_tornado_outbreak": 0,
+                "observed_significant_tornado_support": 0,
+                "tornado_concern_score": 0.1200,
+                "is_real_ingest": True,
+            },
+        ]
+    )
+
+    adjusted, changes = apply_tornado_preference_mode(frame, "earliest_close")
+    window = summarize_case_windows(adjusted)
+
+    assert not changes.empty
+    assert window.loc[0, "top_valid_date"] == "2024-05-19"
+    assert not bool(window.loc[0, "hail_outranks_tornado_failure"])
 
 
 def test_hybrid_keeps_outbreak_above_non_outbreak_guardrail_case() -> None:

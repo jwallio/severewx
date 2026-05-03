@@ -42,6 +42,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--skip-eval", action="store_true", help="Skip the baseline eval step")
     parser.add_argument("--product-date", help="Optional init date to build a baseline product prototype for")
     parser.add_argument("--product-cycle", default="00", help="Cycle for the optional product prototype")
+    parser.add_argument("--score-variant", default="baseline", help="Tornado-concern eval score variant")
+    parser.add_argument("--tornado-preference-mode", default="off", help="Tornado-concern eval top-day preference mode")
     parser.add_argument("--overwrite", action="store_true", help="Allow overwrite for new product and failure-review outputs")
     args = parser.parse_args(argv)
 
@@ -124,7 +126,9 @@ def main(argv: list[str] | None = None) -> None:
                 "--component-variant",
                 "baseline",
                 "--score-variant",
-                "baseline",
+                args.score_variant,
+                "--tornado-preference-mode",
+                args.tornado_preference_mode,
                 "--output-csv",
                 str(eval_csv),
                 "--output-md",

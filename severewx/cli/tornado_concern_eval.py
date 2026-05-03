@@ -14,7 +14,7 @@ import xarray as xr
 from severewx.config import load_settings
 from severewx.utils.paths import build_paths
 
-SCORE_VARIANTS = ["baseline", "tornado_emphasis", "capped_broad", "learned_gated", "hybrid", "lead_time_calibrated"]
+SCORE_VARIANTS = ["baseline", "tornado_emphasis", "capped_broad", "learned_gated", "hybrid", "lead_time_calibrated", "v1_triage"]
 COMPONENT_VARIANTS = [
     "baseline",
     "core_tornado_gated",
@@ -1676,6 +1676,10 @@ def _variant_terms_from_components(components: dict[str, Any], variant: str = "b
     elif variant == "lead_time_calibrated":
         # Opt-in challenger: later lead days are less reliable and often produced broad severe false-top days.
         variant_penalty_term = float(np.exp(-0.50 * lead_days))
+    elif variant == "v1_triage":
+        # V1 review ranker: keep the product fields unchanged, but strongly demote later-lead
+        # broad-severe maxima so early tornado-focused days are easier to review first.
+        variant_penalty_term = float(np.exp(-2.50 * lead_days))
 
     final_score = raw_base * variant_tornado_term * variant_broad_term * variant_learned_term * variant_penalty_term
     final_score = float(np.nan_to_num(final_score, nan=0.0, posinf=0.0, neginf=0.0))
@@ -1711,9 +1715,15 @@ def _daily_tornado_concern_components(
     component_variant: str = "baseline",
     source_variant: str = "baseline",
     core_variant: str = "baseline",
+    init_date: str | None = None,
+    valid_date: str | None = None,
 ) -> dict[str, float]:
     components = _raw_tornado_concern_components(daily)
     components["learned_tornado_concern_prob"] = float(learned_prob)
+    if init_date is not None:
+        components["init_date"] = init_date
+    if valid_date is not None:
+        components["valid_date"] = valid_date
     components.update(_raw_core_terms_from_components(components, variant=raw_core_variant))
     components.update(_core_terms_from_components(components, variant=core_variant))
     components.update(_source_terms_from_components(components, variant=source_variant))
@@ -1769,6 +1779,8 @@ def evaluate_tornado_concern_for_artifacts(
                     component_variant=component_variant,
                     source_variant=source_variant,
                     core_variant=core_variant,
+                    init_date=init_date or str(verification_payload.get("run_summary", {}).get("init_date", "")),
+                    valid_date=valid_date,
                 ),
             }
         )
@@ -1783,7 +1795,7 @@ def apply_tornado_preference_mode(frame: pd.DataFrame, mode: str = "off") -> tup
     changes: list[dict[str, Any]] = []
     if mode == "off":
         return adjusted, pd.DataFrame(columns=["init_date", "prior_top_valid_date", "new_top_valid_date", "preference_delta"])
-    if mode not in {"conservative", "compact_tornado"}:
+    if mode not in {"conservative", "compact_tornado", "earliest_close"}:
         raise ValueError(f"unsupported tornado preference mode: {mode}")
 
     preference_columns: dict[str, float] = {
@@ -1810,6 +1822,33 @@ def apply_tornado_preference_mode(frame: pd.DataFrame, mode: str = "off") -> tup
             continue
 
         close_margin = max(0.02, 0.35 * top_score)
+        if mode == "earliest_close":
+            top_valid_date = pd.to_datetime(str(top.get("valid_date", "")), errors="coerce")
+            if pd.isna(top_valid_date):
+                continue
+            early_close_margin = max(0.02, 0.15 * top_score)
+            earlier_rows = ranked.loc[
+                (pd.to_datetime(ranked["valid_date"].astype(str), errors="coerce") < top_valid_date)
+                & (ranked["ranking_tornado_concern_score"].astype(float) >= top_score - early_close_margin)
+            ].copy()
+            if earlier_rows.empty:
+                continue
+            candidate = earlier_rows.sort_values(["valid_date", "ranking_tornado_concern_score"], ascending=[True, False]).iloc[0]
+            candidate_score = float(candidate["ranking_tornado_concern_score"])
+            preference_delta = max(0.000001, top_score - candidate_score + 0.000001)
+            adjusted.loc[candidate.name, "ranking_tornado_concern_score"] = candidate_score + preference_delta
+            adjusted.loc[candidate.name, "preference_adjustment"] = preference_delta
+            adjusted.loc[candidate.name, "preference_applied"] = True
+            changes.append(
+                {
+                    "init_date": init_date,
+                    "prior_top_valid_date": str(top["valid_date"]),
+                    "new_top_valid_date": str(candidate["valid_date"]),
+                    "preference_delta": float(preference_delta),
+                }
+            )
+            continue
+
         if mode == "compact_tornado":
             compact_close_margin = max(0.08, 0.60 * top_score)
             broad_top = float(top.get("broad_contamination_proxy", 0.0) or 0.0) >= 0.35
@@ -3398,7 +3437,7 @@ def _write_markdown_summary(
         f"Mode: {preference_mode}",
         "",
     ]
-    if preference_mode == "conservative":
+    if preference_mode != "off":
         if preference_changes.empty:
             lines.extend(["No windows changed top day.", ""])
         else:
@@ -3461,7 +3500,7 @@ def main() -> None:
     parser.add_argument("--source-variant", choices=SOURCE_VARIANTS, default="baseline")
     parser.add_argument("--component-variant", choices=COMPONENT_VARIANTS, default="baseline")
     parser.add_argument("--score-variant", choices=SCORE_VARIANTS, default="baseline")
-    parser.add_argument("--tornado-preference-mode", choices=["off", "conservative", "compact_tornado"], default="off")
+    parser.add_argument("--tornado-preference-mode", choices=["off", "conservative", "compact_tornado", "earliest_close"], default="off")
     args = parser.parse_args()
 
     settings = load_settings()

@@ -1610,6 +1610,149 @@ def test_recovery_wave_can_use_reviewed_dates_file(tmp_path: Path, monkeypatch) 
     assert list(cases["date"]) == ["2024-04-03", "2024-04-01"]
 
 
+def test_hard_negative_wave_dates_file_is_authoritative_for_zero_tornado_dates(tmp_path: Path, monkeypatch) -> None:
+    paths = _workflow_paths(tmp_path)
+    for path in [paths.outputs, paths.verification, paths.labels, paths.interim]:
+        path.mkdir(parents=True, exist_ok=True)
+    candidate_rows = pd.DataFrame(
+        [
+            {"date": "2025-05-02", "priority_tier": "all_tornado", "priority_sort_key": 2, "failure_reason": "not_real_ingest_confirmed", "real_ingest_failure_detail": "no_local_real_ingest_evidence"},
+        ]
+    )
+    dates = [f"2024-08-{day:02d}" for day in range(1, 31)] + [f"2024-09-{day:02d}" for day in range(1, 21)]
+    dates_file = tmp_path / "hard_negative_reviewed.txt"
+    dates_file.write_text("\n".join(dates) + "\n", encoding="utf-8")
+
+    monkeypatch.setattr(wave_cli, "load_settings", lambda: object())
+    monkeypatch.setattr(wave_cli, "build_paths", lambda _settings: paths)
+    monkeypatch.setattr(wave_cli, "build_tornado_concern_candidate_rows", lambda *args, **kwargs: candidate_rows)
+
+    outdir = tmp_path / "hard_negative_dates_file_wave"
+    wave_cli.main(
+        [
+            "--wave",
+            "hard_negative",
+            "--dates-file",
+            str(dates_file),
+            "--batch-size",
+            "10",
+            "--output-dir",
+            str(outdir),
+            "--dry-run",
+        ]
+    )
+
+    summary = pd.read_csv(outdir / "recovery_wave_summary.csv")
+    cases = pd.read_csv(outdir / "recovery_wave_cases.csv")
+    assert list(summary["planned_dates"]) == [10, 10, 10, 10, 10]
+    assert list(cases["date"]) == dates
+    assert set(cases["priority_tier"]) == {"hard_negative"}
+
+
+def test_hard_negative_wave_dates_file_does_not_filter_through_tornado_positive_tiers(tmp_path: Path, monkeypatch) -> None:
+    paths = _workflow_paths(tmp_path)
+    for path in [paths.outputs, paths.verification, paths.labels, paths.interim]:
+        path.mkdir(parents=True, exist_ok=True)
+    candidate_rows = pd.DataFrame(
+        [
+            {"date": "2025-05-02", "priority_tier": "all_tornado", "priority_sort_key": 2, "failure_reason": "not_real_ingest_confirmed", "real_ingest_failure_detail": "no_local_real_ingest_evidence"},
+            {"date": "2024-04-26", "priority_tier": "sig_tor", "priority_sort_key": 0, "failure_reason": "not_real_ingest_confirmed", "real_ingest_failure_detail": "no_local_real_ingest_evidence"},
+        ]
+    )
+    dates_file = tmp_path / "reviewed_hard_negative.txt"
+    dates_file.write_text("2024-08-17\n2025-05-02\n2024-08-18\n", encoding="utf-8")
+
+    monkeypatch.setattr(wave_cli, "load_settings", lambda: object())
+    monkeypatch.setattr(wave_cli, "build_paths", lambda _settings: paths)
+    monkeypatch.setattr(wave_cli, "build_tornado_concern_candidate_rows", lambda *args, **kwargs: candidate_rows)
+
+    outdir = tmp_path / "hard_negative_no_tier_filter"
+    wave_cli.main(
+        [
+            "--wave",
+            "hard_negative",
+            "--dates-file",
+            str(dates_file),
+            "--batch-size",
+            "10",
+            "--output-dir",
+            str(outdir),
+            "--dry-run",
+        ]
+    )
+
+    cases = pd.read_csv(outdir / "recovery_wave_cases.csv")
+    assert list(cases["date"]) == ["2024-08-17", "2025-05-02", "2024-08-18"]
+    assert set(cases["priority_tier"]) == {"hard_negative"}
+
+
+def test_recovery_wave_dates_file_positive_wave_still_uses_candidate_rows(tmp_path: Path, monkeypatch) -> None:
+    paths = _workflow_paths(tmp_path)
+    for path in [paths.outputs, paths.verification, paths.labels, paths.interim]:
+        path.mkdir(parents=True, exist_ok=True)
+    candidate_rows = pd.DataFrame(
+        [
+            {"date": "2024-04-01", "priority_tier": "sig_tor", "priority_sort_key": 0, "failure_reason": "not_real_ingest_confirmed", "real_ingest_failure_detail": "no_local_real_ingest_evidence"},
+        ]
+    )
+    dates_file = tmp_path / "positive_reviewed.txt"
+    dates_file.write_text("2024-08-17\n2024-04-01\n", encoding="utf-8")
+
+    monkeypatch.setattr(wave_cli, "load_settings", lambda: object())
+    monkeypatch.setattr(wave_cli, "build_paths", lambda _settings: paths)
+    monkeypatch.setattr(wave_cli, "build_tornado_concern_candidate_rows", lambda *args, **kwargs: candidate_rows)
+
+    outdir = tmp_path / "positive_dates_file_wave"
+    wave_cli.main(
+        [
+            "--wave",
+            "mixed",
+            "--dates-file",
+            str(dates_file),
+            "--batch-size",
+            "10",
+            "--output-dir",
+            str(outdir),
+            "--dry-run",
+        ]
+    )
+
+    cases = pd.read_csv(outdir / "recovery_wave_cases.csv")
+    assert list(cases["date"]) == ["2024-04-01"]
+    assert list(cases["priority_tier"]) == ["sig_tor"]
+
+
+def test_recovery_wave_summary_markdown_includes_skipped_dates_file_reasons(tmp_path: Path, monkeypatch) -> None:
+    paths = _workflow_paths(tmp_path)
+    for path in [paths.outputs, paths.verification, paths.labels, paths.interim]:
+        path.mkdir(parents=True, exist_ok=True)
+    dates_file = tmp_path / "reviewed_with_skips.txt"
+    dates_file.write_text("2024-08-17\nnot-a-date\n2024-08-17\n", encoding="utf-8")
+
+    monkeypatch.setattr(wave_cli, "load_settings", lambda: object())
+    monkeypatch.setattr(wave_cli, "build_paths", lambda _settings: paths)
+    monkeypatch.setattr(wave_cli, "build_tornado_concern_candidate_rows", lambda *args, **kwargs: pd.DataFrame())
+
+    outdir = tmp_path / "skipped_dates_wave"
+    wave_cli.main(
+        [
+            "--wave",
+            "hard_negative",
+            "--dates-file",
+            str(dates_file),
+            "--batch-size",
+            "10",
+            "--output-dir",
+            str(outdir),
+            "--dry-run",
+        ]
+    )
+
+    markdown = (outdir / "recovery_wave_summary.md").read_text(encoding="utf-8")
+    assert "| not-a-date | invalid_date |" in markdown
+    assert "| 2024-08-17 | duplicate_date |" in markdown
+
+
 def test_hard_negative_candidate_selector_uses_eval_failures_not_random_dates(tmp_path: Path) -> None:
     eval_csv = tmp_path / "eval.csv"
     output = tmp_path / "hard_negative_recovery_candidates.txt"
