@@ -17,7 +17,7 @@ import xarray as xr
 
 from severewx.config import AppSettings
 from severewx.ingest.normalize import normalize_dataset
-from severewx.ingest.stage_gfs import stage_historical_gfs
+from severewx.ingest.stage_gfs import NOAA_GRIB_SOURCE_SPECS, stage_historical_gfs
 from severewx.ingest.storage import (
     load_json_metadata,
     raw_grib_metadata_path,
@@ -32,7 +32,14 @@ from severewx.utils.paths import DataPaths, build_paths
 
 LOGGER = configure_logging()
 SYNTHETIC_SOURCES = {"synthetic", "synthetic_fallback"}
-REMOTE_STAGED_SOURCES = {"aws_recent", "open_meteo_recent", "staged_gfs_auto"}
+REMOTE_STAGED_SOURCES = {
+    "aws_recent",
+    "open_meteo_recent",
+    "staged_gfs_auto",
+    "hrrr_recent",
+    "rap_recent",
+    "nam_recent",
+}
 REALTIME_SOURCES = {"nomads", "local_file", "local_staged_gfs", *REMOTE_STAGED_SOURCES}
 
 STANDARD_FIELDS = [
@@ -126,9 +133,21 @@ def _source_origin(source_name: str) -> str:
 def _remote_stage_strategy(source_name: str) -> str:
     if source_name == "staged_gfs_auto":
         return "auto"
-    if source_name in {"aws_recent", "open_meteo_recent"}:
+    if source_name in {"open_meteo_recent", *NOAA_GRIB_SOURCE_SPECS}:
         return source_name
     raise ValueError(f"unsupported remote staged GFS source: {source_name}")
+
+
+def _remote_stage_output_root(source_name: str, paths: DataPaths) -> Path:
+    if source_name in {"aws_recent", "open_meteo_recent", "staged_gfs_auto"}:
+        return paths.raw / "staged_gfs"
+    return paths.raw / "staged_forecasts" / source_name
+
+
+def _remote_stage_output_source_name(source_name: str) -> str:
+    if source_name in {"open_meteo_recent", "staged_gfs_auto"}:
+        return "aws_recent"
+    return source_name
 
 
 def _processing_scope(settings: AppSettings) -> dict[str, Any]:
@@ -555,7 +574,11 @@ class LocalFileForecastSource:
 
 @dataclass(slots=True)
 class LocalStagedGFSForecastSource:
-    """Load per-lead locally staged Day 1-4 GFS files through the standard normalization path."""
+    """Load per-lead locally staged Day 1-4 forecast files through the standard normalization path."""
+
+    source_name: str = "local_staged_gfs"
+    stage_root: Path | None = None
+    stage_source_name: str = "aws_recent"
 
     def _file_patterns(self, settings: AppSettings) -> list[str]:
         configured = settings.get("ingest.local_staged_gfs.file_patterns", []) or []
@@ -568,6 +591,14 @@ class LocalStagedGFSForecastSource:
             "{root}/data/raw/staged_gfs/{date_nodash}/{cycle}/gfs.t{cycle}z.pgrb2.0p25.f{lead:03d}.grib2",
             "{root}/data/raw/staged_gfs/{date_nodash}/{cycle}/gfs.t{cycle}z.pgrb2.0p25.f{lead:03d}.nc",
         ]
+        if self.stage_root is not None:
+            staged_path = str(self.stage_root)
+            source_output = NOAA_GRIB_SOURCE_SPECS.get(self.stage_source_name, NOAA_GRIB_SOURCE_SPECS["aws_recent"])["output_template"]
+            defaults = [
+                f"{staged_path}/{{date}}/{{cycle}}/{source_output}",
+                f"{staged_path}/{{date}}/{{cycle}}/{Path(source_output).with_suffix('.nc')}",
+                *defaults,
+            ]
         ordered: list[str] = []
         for pattern in [*patterns, *defaults]:
             if pattern and pattern not in ordered:
@@ -587,6 +618,7 @@ class LocalStagedGFSForecastSource:
             "cycle": cycle,
             "lead": int(lead),
             "lead_padded": f"{int(lead):03d}",
+            "lead_padded2": f"{int(lead):02d}",
         }
 
     def _candidate_paths(self, date: str, cycle: str, lead: int, settings: AppSettings) -> list[Path]:
@@ -657,7 +689,7 @@ class LocalStagedGFSForecastSource:
         allow_partial_cycle = bool(settings.get("ingest.allow_partial_cycle", False))
         inventory = self.validate_cycle(date, cycle, settings)
         if inventory["status"] == "unusable":
-            raise FileNotFoundError(f"no staged local GFS files found for {date} {cycle}Z")
+            raise FileNotFoundError(f"no staged local forecast files found for {date} {cycle}Z")
 
         datasets: list[xr.Dataset] = []
         lead_summaries: list[dict[str, Any]] = []
@@ -677,7 +709,7 @@ class LocalStagedGFSForecastSource:
                         "lead_hour": int(lead),
                         "source_path": str(source_path),
                         "checked_paths": checked,
-                        "provider": "local_staged_gfs",
+                        "provider": self.source_name,
                         "cache_status": "staged_local",
                     }
                 )
@@ -704,7 +736,7 @@ class LocalStagedGFSForecastSource:
         elif not seen_leads:
             inventory_status["status"] = "unusable"
         cycle_summary = {
-            "source": "local_staged_gfs",
+            "source": self.source_name,
             "source_mode": "real",
             "source_origin": "local",
             "available_fields": sorted(combined.data_vars),
@@ -721,25 +753,27 @@ class LocalStagedGFSForecastSource:
             "cache_overview": {"cache_hits": len(lead_summaries), "cache_misses": 0, "cache_unusable": len(failed_leads)},
             "staged_validation": inventory_status,
         }
-        combined.attrs["source"] = "local_staged_gfs"
+        combined.attrs["source"] = self.source_name
         combined.attrs["diagnostic_summary"] = json.dumps(cycle_summary)
         return _validate_provider_result(combined, cycle_summary, settings)
 
 
 @dataclass(slots=True)
 class RemoteStagedGFSForecastSource:
-    """Stage a remote GFS cycle, then load it through the local staged-GFS reader."""
+    """Stage a remote forecast cycle, then load it through the local staged reader."""
 
     source_name: str
 
     def fetch_cycle(self, date: str, cycle: str, settings: AppSettings, paths: DataPaths) -> tuple[xr.Dataset, dict[str, Any]]:
         strategy = _remote_stage_strategy(self.source_name)
+        output_root = _remote_stage_output_root(self.source_name, paths)
+        output_source_name = _remote_stage_output_source_name(self.source_name)
         report = stage_historical_gfs(
             start=date,
             end=date,
             cycles=[cycle],
             leads=[int(value) for value in settings.get("ingest.leads", []) or []],
-            output_root=paths.raw / "staged_gfs",
+            output_root=output_root,
             paths=paths,
             settings=settings,
             source_strategy=strategy,
@@ -748,11 +782,18 @@ class RemoteStagedGFSForecastSource:
             backoff_seconds=int(settings.get("ingest.backoff_seconds", 3)),
         )
         if int(report.get("successful_downloads", 0) or 0) <= 0 and int(report.get("skipped_existing_files", 0) or 0) <= 0:
-            raise RuntimeError(f"remote staged GFS source failed to stage any usable leads: {report.get('report_path', '')}")
-        dataset, summary = LocalStagedGFSForecastSource().fetch_cycle(date, cycle, settings, paths)
+            raise RuntimeError(f"remote staged forecast source failed to stage any usable leads: {report.get('report_path', '')}")
+        dataset, summary = LocalStagedGFSForecastSource(
+            source_name=f"local_staged_{self.source_name}",
+            stage_root=output_root,
+            stage_source_name=output_source_name,
+        ).fetch_cycle(date, cycle, settings, paths)
         summary["source"] = self.source_name
         summary["source_mode"] = "real"
         summary["source_origin"] = "remote"
+        summary["source_model"] = NOAA_GRIB_SOURCE_SPECS.get(output_source_name, {"model": "gfs"}).get("model", "gfs")
+        summary["remote_stage_output_root"] = str(output_root)
+        summary["remote_stage_output_source_name"] = output_source_name
         summary["remote_stage_strategy"] = strategy
         summary["remote_stage_report_path"] = str(report.get("report_path", ""))
         summary["remote_stage_successful_downloads"] = int(report.get("successful_downloads", 0) or 0)

@@ -196,6 +196,7 @@ def test_ingest_can_fail_over_from_nomads_to_remote_staged_gfs(tmp_path, monkeyp
         assert end == "2026-04-09"
         assert cycles == ["00"]
         assert leads == [0, 6]
+        assert output_root == paths.raw / "staged_gfs"
         assert source_strategy == "aws_recent"
         return {
             "report_path": str(paths.interim / "staged_gfs_download_2026-04-09_2026-04-09_00.json"),
@@ -226,6 +227,73 @@ def test_ingest_can_fail_over_from_nomads_to_remote_staged_gfs(tmp_path, monkeyp
     assert summary["attempted_sources"] == ["nomads", "aws_recent"]
     assert summary["provider_failures"] == [{"source": "nomads", "error": "nomads 500"}]
     assert summary["remote_stage_strategy"] == "aws_recent"
+
+
+def test_ingest_can_use_hrrr_as_remote_staged_forecast_source(tmp_path, monkeypatch) -> None:
+    settings = load_settings()
+    settings.raw["paths"]["root"] = str(tmp_path)
+    settings.raw["paths"]["data"] = str(tmp_path / "data")
+    settings.raw["paths"]["raw"] = str(tmp_path / "data" / "raw")
+    settings.raw["paths"]["interim"] = str(tmp_path / "data" / "interim")
+    settings.raw["paths"]["outputs"] = str(tmp_path / "data" / "outputs")
+    settings.raw["ingest"]["source"] = "hrrr_recent"
+    settings.raw["ingest"]["allow_synthetic_fallback"] = False
+    settings.raw["ingest"]["leads"] = [0, 6]
+    paths = build_paths(settings)
+
+    def fake_stage_historical_gfs(
+        *,
+        start,
+        end,
+        cycles,
+        leads,
+        output_root,
+        paths: object,
+        settings,
+        source_strategy,
+        timeout,
+        retries,
+        backoff_seconds,
+    ):
+        assert start == "2026-05-03"
+        assert end == "2026-05-03"
+        assert cycles == ["00"]
+        assert leads == [0, 6]
+        assert output_root == paths.raw / "staged_forecasts" / "hrrr_recent"
+        assert source_strategy == "hrrr_recent"
+        return {
+            "report_path": str(paths.interim / "staged_gfs_download_2026-05-03_2026-05-03_00.json"),
+            "successful_downloads": 2,
+            "skipped_existing_files": 0,
+            "failed_downloads": 0,
+            "successful_downloads_by_source": {"hrrr_recent": 2},
+        }
+
+    def fake_local_staged_fetch(self, date, cycle, settings, paths):
+        assert self.source_name == "local_staged_hrrr_recent"
+        assert self.stage_root == paths.raw / "staged_forecasts" / "hrrr_recent"
+        assert self.stage_source_name == "hrrr_recent"
+        dataset, summary = SyntheticForecastSource().fetch_cycle(date, cycle, settings, paths)
+        summary["source"] = self.source_name
+        summary["source_mode"] = "real"
+        dataset.attrs["source"] = self.source_name
+        return dataset, summary
+
+    monkeypatch.setattr(nomads_ingest, "stage_historical_gfs", fake_stage_historical_gfs)
+    monkeypatch.setattr(nomads_ingest.LocalStagedGFSForecastSource, "fetch_cycle", fake_local_staged_fetch)
+
+    output = nomads_ingest.ingest_forecast_cycle("2026-05-03", "00", settings=settings)
+    summary = pd.read_json(paths.interim / "ingest_summary_2026-05-03_00.json", typ="series")
+
+    assert output.exists()
+    assert summary["source"] == "hrrr_recent"
+    assert summary["source_model"] == "hrrr"
+    assert summary["source_mode"] == "real"
+    assert summary["source_origin"] == "remote"
+    assert summary["real_ingest_available"]
+    assert summary["remote_stage_strategy"] == "hrrr_recent"
+    assert summary["remote_stage_output_source_name"] == "hrrr_recent"
+    assert summary["remote_stage_successful_downloads_by_source"] == {"hrrr_recent": 2}
 
 
 def test_grib_filters_disambiguate_surface_cape_and_cin() -> None:

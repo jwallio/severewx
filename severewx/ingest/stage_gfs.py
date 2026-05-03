@@ -28,6 +28,26 @@ AWS_RECENT_URL_TEMPLATES = [
     "https://noaa-gfs-bdp-pds.s3.amazonaws.com/gfs.{date_nodash}/{cycle}/atmos/gfs.t{cycle}z.pgrb2.0p25.f{lead_padded}",
 ]
 
+AWS_HRRR_RECENT_URL_TEMPLATES = [
+    "https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.{date_nodash}/conus/hrrr.t{cycle}z.wrfsfcf{lead_padded2}.grib2",
+]
+
+AWS_RAP_RECENT_URL_TEMPLATES = [
+    "https://noaa-rap-pds.s3.amazonaws.com/rap.{date_nodash}/rap.t{cycle}z.awip32f{lead_padded2}.grib2",
+]
+
+AWS_NAM_RECENT_URL_TEMPLATES = [
+    "https://noaa-nam-pds.s3.amazonaws.com/nam.{date_nodash}/nam.t{cycle}z.awphys{lead_padded2}.tm00.grib2",
+]
+
+AWS_GEFS_MEAN_RECENT_URL_TEMPLATES = [
+    "https://noaa-gefs-pds.s3.amazonaws.com/gefs.{date_nodash}/{cycle}/atmos/pgrb2sp25/geavg.t{cycle}z.pgrb2s.0p25.f{lead_padded}",
+]
+
+AWS_GEFS_CONTROL_RECENT_URL_TEMPLATES = [
+    "https://noaa-gefs-pds.s3.amazonaws.com/gefs.{date_nodash}/{cycle}/atmos/pgrb2bp5/gec00.t{cycle}z.pgrb2b.0p50.f{lead_padded}",
+]
+
 NCEI_HISTORICAL_URL_TEMPLATES = [
     "https://www.ncei.noaa.gov/thredds/fileServer/model-gfs-004-files/{year}{month}/{date_nodash}/gfs_3_{date_nodash}_{cycle}00_{lead_padded}.grb2",
     "https://www.ncei.noaa.gov/thredds/fileServer/model-gfs-004-files-old/{year}{month}/{date_nodash}/gfs_3_{date_nodash}_{cycle}00_{lead_padded}.grb2",
@@ -56,6 +76,47 @@ OPEN_METEO_HOURLY_VARIABLES = [
     "total_column_integrated_water_vapour",
 ]
 
+NOAA_GRIB_SOURCE_SPECS: dict[str, dict[str, Any]] = {
+    "aws_recent": {
+        "model": "gfs",
+        "templates": AWS_RECENT_URL_TEMPLATES,
+        "output_template": "gfs.t{cycle}z.pgrb2.0p25.f{lead_padded}.grib2",
+    },
+    "ncei_historical": {
+        "model": "gfs",
+        "templates": NCEI_HISTORICAL_URL_TEMPLATES,
+        "output_template": "gfs.t{cycle}z.pgrb2.0p25.f{lead_padded}.grib2",
+    },
+    "hrrr_recent": {
+        "model": "hrrr",
+        "templates": AWS_HRRR_RECENT_URL_TEMPLATES,
+        "output_template": "hrrr.t{cycle}z.wrfsfcf{lead_padded2}.grib2",
+    },
+    "rap_recent": {
+        "model": "rap",
+        "templates": AWS_RAP_RECENT_URL_TEMPLATES,
+        "output_template": "rap.t{cycle}z.awip32f{lead_padded2}.grib2",
+    },
+    "nam_recent": {
+        "model": "nam",
+        "templates": AWS_NAM_RECENT_URL_TEMPLATES,
+        "output_template": "nam.t{cycle}z.awphys{lead_padded2}.tm00.grib2",
+    },
+    # GEFS is staged here as individual public GRIB products. Full product ingest
+    # needs a multi-file ensemble adapter because surface and upper-air fields
+    # are split across different GEFS product families.
+    "gefs_mean_recent": {
+        "model": "gefs_mean",
+        "templates": AWS_GEFS_MEAN_RECENT_URL_TEMPLATES,
+        "output_template": "geavg.t{cycle}z.pgrb2s.0p25.f{lead_padded}.grib2",
+    },
+    "gefs_control_recent": {
+        "model": "gefs_control",
+        "templates": AWS_GEFS_CONTROL_RECENT_URL_TEMPLATES,
+        "output_template": "gec00.t{cycle}z.pgrb2b.0p50.f{lead_padded}.grib2",
+    },
+}
+
 
 @dataclass(slots=True)
 class StageTarget:
@@ -66,8 +127,14 @@ class StageTarget:
 
 
 def staged_gfs_output_path(output_root: Path | str, date: str, cycle: str, lead: int) -> Path:
+    return staged_forecast_output_path(output_root, date, cycle, lead, source_name="aws_recent")
+
+
+def staged_forecast_output_path(output_root: Path | str, date: str, cycle: str, lead: int, source_name: str = "aws_recent") -> Path:
     root = Path(output_root).resolve()
-    return root / date / cycle / f"gfs.t{cycle}z.pgrb2.0p25.f{int(lead):03d}.grib2"
+    normalized = str(source_name).lower()
+    template = NOAA_GRIB_SOURCE_SPECS.get(normalized, NOAA_GRIB_SOURCE_SPECS["aws_recent"])["output_template"]
+    return root / date / cycle / template.format(**_format_tokens(date, cycle, lead, root))
 
 
 def _report_path(paths: DataPaths, start: str, end: str, cycles: list[str]) -> Path:
@@ -86,18 +153,17 @@ def _format_tokens(date: str, cycle: str, lead: int, output_root: Path) -> dict[
         "cycle": cycle,
         "lead": int(lead),
         "lead_padded": f"{int(lead):03d}",
+        "lead_padded2": f"{int(lead):02d}",
         "output_root": str(output_root),
     }
 
 
 def _source_templates(source_name: str) -> list[str]:
     normalized = str(source_name).lower()
-    if normalized == "ncei_historical":
-        return list(NCEI_HISTORICAL_URL_TEMPLATES)
-    if normalized == "aws_recent":
-        return list(AWS_RECENT_URL_TEMPLATES)
     if normalized == "open_meteo_recent":
         return [OPEN_METEO_RECENT_ENDPOINT]
+    if normalized in NOAA_GRIB_SOURCE_SPECS:
+        return list(NOAA_GRIB_SOURCE_SPECS[normalized]["templates"])
     raise ValueError(f"unsupported source name: {source_name}")
 
 
@@ -119,7 +185,7 @@ def resolve_source_names(
     normalized = str(source_strategy).lower()
     if normalized == "auto":
         return _auto_source_names(date, recent_window_days=recent_window_days)
-    if normalized in {"ncei_historical", "aws_recent", "open_meteo_recent"}:
+    if normalized in {*NOAA_GRIB_SOURCE_SPECS, "open_meteo_recent"}:
         return [normalized]
     raise ValueError(f"unsupported source strategy: {source_strategy}")
 
@@ -166,6 +232,7 @@ def iter_stage_targets(
     cycles: list[str],
     leads: list[int],
     output_root: Path | str,
+    source_name: str = "aws_recent",
 ) -> list[StageTarget]:
     targets: list[StageTarget] = []
     for valid_date in iter_dates(start, end):
@@ -177,10 +244,19 @@ def iter_stage_targets(
                         date=date_value,
                         cycle=cycle,
                         lead=int(lead),
-                        output_path=staged_gfs_output_path(output_root, date_value, cycle, int(lead)),
+                        output_path=staged_forecast_output_path(output_root, date_value, cycle, int(lead), source_name=source_name),
                     )
                 )
     return targets
+
+
+def _stage_output_source_name(source_strategy: str, url_templates: list[str] | None = None) -> str:
+    normalized = str(source_strategy).lower()
+    if url_templates or normalized in {"auto", "open_meteo_recent", "ncei_historical"}:
+        return "aws_recent"
+    if normalized in NOAA_GRIB_SOURCE_SPECS:
+        return normalized
+    return "aws_recent"
 
 
 def _remove_temp_file(path: Path) -> None:
@@ -430,10 +506,12 @@ def stage_historical_gfs(
 ) -> dict[str, Any]:
     settings = settings or AppSettings(raw={})
     stage_root = Path(output_root).resolve()
-    targets = iter_stage_targets(start, end, cycles, leads, stage_root)
+    output_source_name = _stage_output_source_name(source_strategy, url_templates=url_templates)
+    targets = iter_stage_targets(start, end, cycles, leads, stage_root, source_name=output_source_name)
     source_names = ["custom_url_templates"] if url_templates else resolve_source_names(start, source_strategy=source_strategy, recent_window_days=recent_window_days)
     report: dict[str, Any] = {
         "source_strategy": "custom_url_templates" if url_templates else source_strategy,
+        "output_source_name": output_source_name,
         "source_names": source_names,
         "recent_window_days": int(recent_window_days),
         "start": start,

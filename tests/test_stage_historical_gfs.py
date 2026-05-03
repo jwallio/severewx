@@ -9,10 +9,12 @@ import yaml
 from severewx.cli.stage_historical_gfs import main as stage_historical_gfs_main
 from severewx.config import load_settings
 from severewx.ingest.stage_gfs import (
+    NOAA_GRIB_SOURCE_SPECS,
     build_source_attempts,
     build_source_urls,
     resolve_source_names,
     stage_historical_gfs,
+    staged_forecast_output_path,
     staged_gfs_output_path,
 )
 from severewx.utils.paths import build_paths
@@ -81,6 +83,27 @@ def test_source_selection_prefers_ncei_for_older_dates_and_aws_for_recent_dates(
     assert "model-gfs-004-files" in attempts[0]["url"]
 
 
+def test_model_specific_recent_source_templates_and_output_names() -> None:
+    assert {"hrrr_recent", "rap_recent", "nam_recent", "gefs_mean_recent", "gefs_control_recent"}.issubset(NOAA_GRIB_SOURCE_SPECS)
+
+    hrrr_attempts = build_source_attempts("2026-05-03", "00", 6, "data/raw/staged_forecasts/hrrr_recent", source_strategy="hrrr_recent")
+    assert hrrr_attempts == [
+        {
+            "source_name": "hrrr_recent",
+            "url": "https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.20260503/conus/hrrr.t00z.wrfsfcf06.grib2",
+        }
+    ]
+    assert staged_forecast_output_path("data/raw/staged_forecasts/hrrr_recent", "2026-05-03", "00", 6, source_name="hrrr_recent").as_posix().endswith(
+        "/data/raw/staged_forecasts/hrrr_recent/2026-05-03/00/hrrr.t00z.wrfsfcf06.grib2"
+    )
+
+    nam_attempts = build_source_attempts("2026-05-03", "12", 84, "data/raw/staged_forecasts/nam_recent", source_strategy="nam_recent")
+    assert nam_attempts[0]["url"] == "https://noaa-nam-pds.s3.amazonaws.com/nam.20260503/nam.t12z.awphys84.tm00.grib2"
+
+    gefs_attempts = build_source_attempts("2026-05-03", "00", 72, "data/raw/staged_forecasts/gefs_mean_recent", source_strategy="gefs_mean_recent")
+    assert gefs_attempts[0]["url"] == "https://noaa-gefs-pds.s3.amazonaws.com/gefs.20260503/00/atmos/pgrb2sp25/geavg.t00z.pgrb2s.0p25.f072"
+
+
 def test_stage_historical_gfs_downloads_and_skips_existing(tmp_path: Path) -> None:
     settings = _settings_for_stage(tmp_path)
     paths = build_paths(settings)
@@ -115,6 +138,33 @@ def test_stage_historical_gfs_downloads_and_skips_existing(tmp_path: Path) -> No
     assert downloaded_path.read_bytes() == b"pilot-bytes"
     assert aws_url not in session.requested_urls
     assert Path(report["report_path"]).exists()
+
+
+def test_stage_historical_gfs_supports_recent_non_gfs_sources(tmp_path: Path) -> None:
+    settings = _settings_for_stage(tmp_path)
+    paths = build_paths(settings)
+    stage_root = paths.raw / "staged_forecasts" / "rap_recent"
+    rap_url = "https://noaa-rap-pds.s3.amazonaws.com/rap.20260503/rap.t00z.awip32f06.grib2"
+    session = _FakeSession({rap_url: (200, b"rap-bytes", None)})
+
+    report = stage_historical_gfs(
+        "2026-05-03",
+        "2026-05-03",
+        ["00"],
+        [6],
+        stage_root,
+        paths,
+        session=session,
+        source_strategy="rap_recent",
+        retries=1,
+        backoff_seconds=0,
+    )
+
+    downloaded_path = stage_root / "2026-05-03" / "00" / "rap.t00z.awip32f06.grib2"
+    assert report["output_source_name"] == "rap_recent"
+    assert report["successful_downloads"] == 1
+    assert report["successful_downloads_by_source"] == {"rap_recent": 1}
+    assert downloaded_path.read_bytes() == b"rap-bytes"
 
 
 def test_stage_historical_gfs_cli_writes_report(tmp_path: Path, monkeypatch) -> None:
