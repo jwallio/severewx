@@ -296,6 +296,26 @@ def test_ingest_can_use_hrrr_as_remote_staged_forecast_source(tmp_path, monkeypa
     assert summary["remote_stage_successful_downloads_by_source"] == {"hrrr_recent": 2}
 
 
+def test_source_specific_staged_paths_take_precedence_over_gfs_defaults(tmp_path) -> None:
+    settings = load_settings()
+    settings.raw["paths"]["root"] = str(tmp_path)
+    settings.raw["ingest"]["local_staged_gfs"]["file_patterns"] = [
+        "{root}/data/raw/staged_gfs/{date}/{cycle}/gfs.t{cycle}z.pgrb2.0p25.f{lead:03d}.grib2"
+    ]
+    paths = build_paths(settings)
+    source = nomads_ingest.LocalStagedGFSForecastSource(
+        source_name="local_staged_nam_recent",
+        stage_root=paths.raw / "staged_forecasts" / "nam_recent",
+        stage_source_name="nam_recent",
+    )
+
+    candidates = source._candidate_paths("2026-05-03", "00", 60, settings)
+
+    assert candidates[0] == paths.raw / "staged_forecasts" / "nam_recent" / "2026-05-03" / "00" / "nam.t00z.awphys60.tm00.grib2"
+    assert candidates[1] == paths.raw / "staged_forecasts" / "nam_recent" / "2026-05-03" / "00" / "nam.t00z.awphys60.tm00.nc"
+    assert "staged_gfs" in str(candidates[2])
+
+
 def test_grib_filters_disambiguate_surface_cape_and_cin() -> None:
     assert FIELD_FILTERS["cape"]["typeOfLevel"] == "surface"
     assert FIELD_FILTERS["cin"]["typeOfLevel"] == "surface"

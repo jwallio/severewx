@@ -583,6 +583,7 @@ class LocalStagedGFSForecastSource:
     def _file_patterns(self, settings: AppSettings) -> list[str]:
         configured = settings.get("ingest.local_staged_gfs.file_patterns", []) or []
         patterns = [str(value).strip() for value in configured if str(value).strip()]
+        stage_specific: list[str] = []
         defaults = [
             "{root}/data/raw/staged_gfs/{date}/{cycle}/gfs.t{cycle}z.pgrb2.0p25.f{lead:03d}.grib2",
             "{root}/data/raw/staged_gfs/{date}/{cycle}/gfs.t{cycle}z.pgrb2.0p25.f{lead:03d}.nc",
@@ -594,13 +595,12 @@ class LocalStagedGFSForecastSource:
         if self.stage_root is not None:
             staged_path = str(self.stage_root)
             source_output = NOAA_GRIB_SOURCE_SPECS.get(self.stage_source_name, NOAA_GRIB_SOURCE_SPECS["aws_recent"])["output_template"]
-            defaults = [
+            stage_specific = [
                 f"{staged_path}/{{date}}/{{cycle}}/{source_output}",
                 f"{staged_path}/{{date}}/{{cycle}}/{Path(source_output).with_suffix('.nc')}",
-                *defaults,
             ]
         ordered: list[str] = []
-        for pattern in [*patterns, *defaults]:
+        for pattern in [*stage_specific, *patterns, *defaults]:
             if pattern and pattern not in ordered:
                 ordered.append(pattern)
         return ordered

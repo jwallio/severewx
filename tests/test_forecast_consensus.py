@@ -91,3 +91,25 @@ def test_consensus_reweights_missing_sources_and_excludes_synthetic(tmp_path: Pa
         {"source": "hrrr_recent", "reason": "synthetic_source"},
     ]
     assert metadata["time_weights"][0]["applied_weights"] == {"rap_recent": 0.625, "aws_recent": 0.37499999999999994}
+
+
+def test_consensus_suppresses_single_source_signal_but_preserves_diagnostics(tmp_path: Path) -> None:
+    outputs = tmp_path / "outputs"
+    gfs_product = source_product_path(outputs, "2026-05-03", "00", "aws_recent")
+    gfs_meta = source_metadata_path(outputs, "2026-05-03", "00", "aws_recent")
+    _write_source_product(gfs_product, 0.30)
+    _write_source_metadata(gfs_meta, "aws_recent")
+
+    product_path, _ = build_forecast_consensus(
+        date="2026-05-03",
+        cycle="00",
+        sources=[ConsensusSource("aws_recent", gfs_product, gfs_meta)],
+        output_path=consensus_product_path(outputs, "2026-05-03", "00"),
+        metadata_path=consensus_metadata_path(outputs, "2026-05-03", "00"),
+    )
+
+    with xr.open_dataset(product_path) as dataset:
+        assert np.allclose(dataset[CONSENSUS_FIELD].values, 0.0)
+        assert np.allclose(dataset["model_mean"].values, 0.30)
+        assert np.allclose(dataset["model_max"].values, 0.30)
+        assert np.allclose(dataset["model_agreement_count"].values, 1.0)

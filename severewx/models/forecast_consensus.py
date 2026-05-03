@@ -181,6 +181,7 @@ def build_forecast_consensus(
             minimum = np.nanmin(stack, axis=0)
             spread = maximum - minimum
             agreement = np.sum((stack >= DISPLAY_AGREEMENT_THRESHOLD) & valid_mask, axis=0).astype(np.float32)
+            consensus = np.where(agreement >= 2, consensus, 0.0)
             weighted_fields = np.where(valid_mask, stack * weights, -np.inf)
             primary_index = np.argmax(weighted_fields, axis=0)
             primary = np.zeros_like(primary_index, dtype=np.int16)
