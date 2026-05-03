@@ -434,6 +434,13 @@ def _valid_date_strings(dataset: xr.Dataset) -> list[str]:
     return [timestamp.date().isoformat() for timestamp in times]
 
 
+def _valid_time_strings(dataset: xr.Dataset) -> list[str]:
+    if "time" not in dataset.coords:
+        return []
+    times = pd.to_datetime(dataset["time"].values)
+    return [timestamp.strftime("%Y-%m-%dT%H:%M:%SZ") for timestamp in times]
+
+
 def _select_valid_date_dataset(dataset: xr.Dataset, valid_date: str) -> xr.Dataset:
     if "time" not in dataset.coords:
         return dataset
@@ -443,6 +450,27 @@ def _select_valid_date_dataset(dataset: xr.Dataset, valid_date: str) -> xr.Datas
     if not bool(mask.any()):
         available = ", ".join(list(dict.fromkeys(date.isoformat() for date in dates)))
         raise ValueError(f"forecast artifact has no valid times for {valid_date}; available valid dates: {available}")
+    return dataset.isel(time=mask)
+
+
+def _select_valid_time_window_dataset(dataset: xr.Dataset, valid_start: str, valid_end: str) -> xr.Dataset:
+    if "time" not in dataset.coords:
+        raise ValueError("forecast artifact has no time coordinate for a custom valid-time window")
+    times = pd.to_datetime(dataset["time"].values)
+    start = pd.Timestamp(valid_start)
+    end = pd.Timestamp(valid_end)
+    if start.tzinfo is not None:
+        start = start.tz_convert("UTC").tz_localize(None)
+    if end.tzinfo is not None:
+        end = end.tz_convert("UTC").tz_localize(None)
+    if pd.isna(start) or pd.isna(end):
+        raise ValueError(f"invalid valid-time window: {valid_start} to {valid_end}")
+    if end <= start:
+        raise ValueError(f"--valid-end must be after --valid-start: {valid_start} to {valid_end}")
+    mask = np.asarray((times >= start) & (times < end), dtype=bool)
+    if not bool(mask.any()):
+        available = ", ".join(timestamp.strftime("%Y-%m-%dT%H:%M:%SZ") for timestamp in times)
+        raise ValueError(f"forecast artifact has no valid times in {valid_start} to {valid_end}; available valid times: {available}")
     return dataset.isel(time=mask)
 
 
@@ -576,10 +604,14 @@ def _product_stats(dataset: xr.Dataset, field_name: str) -> dict[str, Any]:
     field = dataset[field_name]
     values = np.asarray(field.values, dtype=float)
     valid_dates = _valid_date_strings(dataset)
+    valid_times = _valid_time_strings(dataset)
     grid_cell_count = int(np.prod([dataset.sizes.get(dim, 0) for dim in ("lat", "lon")])) if {"lat", "lon"}.issubset(dataset.sizes) else 0
     summary: dict[str, Any] = {
         "valid_date_start": valid_dates[0] if valid_dates else "",
         "valid_date_end": valid_dates[-1] if valid_dates else "",
+        "valid_time_start": valid_times[0] if valid_times else "",
+        "valid_time_end": valid_times[-1] if valid_times else "",
+        "valid_times": valid_times,
         "valid_day_count": len(list(dict.fromkeys(valid_dates))),
         "grid_shape": {"lat": int(dataset.sizes.get("lat", 0)), "lon": int(dataset.sizes.get("lon", 0))},
         "grid_cell_count": grid_cell_count,
@@ -686,26 +718,44 @@ def _display_readiness_audit(display_stats: dict[str, Any], *, map_style: str) -
     }
 
 
-def _default_title(valid_date: str) -> str:
-    return f"Tornado Concern Outlook | Valid {valid_date}"
+def _format_valid_time(value: str) -> str:
+    return pd.Timestamp(value).strftime("%Y-%m-%d %HZ")
 
 
-def _default_summary_text(stats: dict[str, Any], *, field_name: str = "tornado_concern_prob") -> str:
+def _format_valid_period_label(valid_date: str, valid_start: str | None = None, valid_end: str | None = None) -> str:
+    if valid_start and valid_end:
+        return f"{_format_valid_time(valid_start)} to {_format_valid_time(valid_end)}"
+    return f"{valid_date} 00-24 UTC"
+
+
+def _valid_period_slug(valid_date: str, valid_start: str | None = None, valid_end: str | None = None) -> str:
+    if not (valid_start and valid_end):
+        return valid_date
+    start = pd.Timestamp(valid_start).strftime("%Y-%m-%d_%Hz").lower()
+    end = pd.Timestamp(valid_end).strftime("%Y-%m-%d_%Hz").lower()
+    return f"{start}_to_{end}"
+
+
+def _default_title(valid_label: str) -> str:
+    return f"Tornado Concern Outlook | Valid {valid_label}"
+
+
+def _default_summary_text(stats: dict[str, Any], *, field_name: str = "tornado_concern_prob", valid_label: str | None = None) -> str:
     start = str(stats.get("valid_date_start", ""))
-    end = str(stats.get("valid_date_end", ""))
+    label = valid_label or f"{start} 00-24 UTC"
     peak = float(stats.get("max_tornado_concern_prob", float("nan")))
     peak_date = str(stats.get("top_valid_date", "")) or "unknown"
     if field_name in {"tornado_environment_outlook", "tornado_environment_outlook_v2", "tornado_environment_outlook_hybrid"}:
         return (
             "This 24-hour prototype shows an ingredient-only tornado environment outlook from saved forecast fields. "
             f"It avoids the learned tornado-concern gridpoint field and highlights coherent overlap of significant-tornado support, "
-            f"tornado-favored overlap, and SCP-style support for {start} 00-24 UTC."
+            f"tornado-favored overlap, and SCP-style support for {label}."
         )
     if np.isnan(peak):
-        return f"Baseline tornado-concern prototype using the saved forecast artifact. Valid {start} 00-24 UTC."
+        return f"Baseline tornado-concern prototype using the saved forecast artifact. Valid {label}."
     return (
         "This 24-hour map shows the maximum baseline tornado-concern signal from the saved forecast artifact "
-        f"for {start} 00-24 UTC. The strongest concern in this product peaks on {peak_date} "
+        f"for {label}. The strongest concern in this product peaks on {peak_date} "
         f"with a max raw gridpoint value of {peak:.3f}. The public map uses a neighborhood-supported display field "
         "so isolated gridpoint spikes are damped and the lightest red shading begins at 2%."
     )
@@ -727,6 +777,7 @@ def _render_product_map(
     date: str,
     cycle: str,
     valid_date: str,
+    valid_period_label: str,
     title: str,
     summary_text: str,
     image_path: Path,
@@ -824,12 +875,10 @@ def _render_product_map(
     if regional_extent is not None:
         _set_map_extent(ax, regional_extent)
     ax.set_title(title, loc="left", fontsize=14, fontweight="bold", color=TEXT_COLOR, pad=16)
-    valid_dates = _valid_date_strings(dataset)
-    valid_start = valid_dates[0] if valid_dates else valid_date
     ax.text(
         0.0,
         1.01,
-        f"24-hour valid period {valid_start} 00-24 UTC | Forecast initialized {date} {cycle}Z"
+        f"24-hour valid period {valid_period_label} | Forecast initialized {date} {cycle}Z"
         + (" | Regional zoom" if regional_extent is not None else ""),
         transform=ax.transAxes,
         ha="left",
@@ -945,6 +994,8 @@ def build_product_bundle(
     date: str,
     cycle: str,
     valid_date: str | None = None,
+    valid_start: str | None = None,
+    valid_end: str | None = None,
     field_name: str = "tornado_concern_prob",
     outdir: Path,
     title: str | None = None,
@@ -968,13 +1019,19 @@ def build_product_bundle(
     forecast_metadata = _load_json(metadata_path)
     with xr.open_dataset(prediction_path) as dataset:
         dataset = _derive_product_field_dataset(dataset, field_name)
-        effective_valid_date = valid_date or date
-        valid_dataset = _select_valid_date_dataset(dataset, effective_valid_date)
+        effective_valid_date = valid_date or (pd.Timestamp(valid_start).date().isoformat() if valid_start else date)
+        if valid_start or valid_end:
+            if not (valid_start and valid_end):
+                raise ValueError("--valid-start and --valid-end must be provided together")
+            valid_dataset = _select_valid_time_window_dataset(dataset, valid_start, valid_end)
+        else:
+            valid_dataset = _select_valid_date_dataset(dataset, effective_valid_date)
         stats = _product_stats(valid_dataset, field_name)
         display_stats = _public_display_stats(valid_dataset, field_name, map_style=map_style, display_preset=display_preset)
         ingredient_diagnostics = _ingredient_diagnostics(valid_dataset, field_name)
-        effective_title = title or _default_title(effective_valid_date)
-        effective_summary = summary_text or _default_summary_text(stats, field_name=field_name)
+        valid_period_label = _format_valid_period_label(effective_valid_date, valid_start, valid_end)
+        effective_title = title or _default_title(valid_period_label)
+        effective_summary = summary_text or _default_summary_text(stats, field_name=field_name, valid_label=valid_period_label)
         if map_style not in {"pixels", "contours", "outlook"}:
             raise ValueError(f"unsupported map style: {map_style}")
         if map_domain not in {"conus", "regional"}:
@@ -982,7 +1039,7 @@ def build_product_bundle(
         if display_preset not in OUTLOOK_DISPLAY_PRESETS:
             raise ValueError(f"unsupported display preset: {display_preset}")
 
-        stem = f"tornado_concern_init_{date}_{cycle}z_valid_{effective_valid_date}"
+        stem = f"tornado_concern_init_{date}_{cycle}z_valid_{_valid_period_slug(effective_valid_date, valid_start, valid_end)}"
         image_path = outdir / f"{stem}.png"
         summary_path = outdir / f"{stem}.md"
         product_metadata_path = outdir / f"{stem}.json"
@@ -995,6 +1052,7 @@ def build_product_bundle(
             date=date,
             cycle=cycle,
             valid_date=effective_valid_date,
+            valid_period_label=valid_period_label,
             title=effective_title,
             summary_text=effective_summary,
             image_path=image_path,
@@ -1042,7 +1100,10 @@ def build_product_bundle(
         "init_date": date,
         "cycle": cycle,
         "valid_date": effective_valid_date,
-        "product_valid_period": "24h_utc_date",
+        "valid_start": valid_start or "",
+        "valid_end": valid_end or "",
+        "valid_period_label": valid_period_label,
+        "product_valid_period": "custom_valid_time_window" if valid_start and valid_end else "24h_utc_date",
         "variant": _product_variant(field_name),
         "field_name": field_name,
         "title": effective_title,
@@ -1094,7 +1155,9 @@ def build_product_bundle(
         ("date", date),
         ("cycle", f"{cycle}Z"),
         ("valid_date", effective_valid_date),
-        ("product_valid_period", "24h UTC date"),
+        ("valid_start", product_metadata["valid_start"]),
+        ("valid_end", product_metadata["valid_end"]),
+        ("product_valid_period", product_metadata["product_valid_period"]),
         ("variant", product_metadata["variant"]),
         ("field_name", field_name),
         ("map_style", map_style),
@@ -1110,7 +1173,8 @@ def build_product_bundle(
         ("public_ready", str(product_metadata["public_ready"])),
         ("audit_status", product_metadata["audit_status"]),
         ("failure_reasons", product_metadata["failure_reasons"] or "none"),
-        ("valid_window", f"{stats.get('valid_date_start', '')}"),
+        ("valid_window", product_metadata["valid_period_label"]),
+        ("selected_valid_times", ",".join(str(value) for value in stats.get("valid_times", []))),
         ("top_valid_date", stats.get("top_valid_date", "")),
         ("peak_location", f"{ingredient_diagnostics.get('peak_lat', '')}, {ingredient_diagnostics.get('peak_lon', '')}" if ingredient_diagnostics else ""),
         ("limiting_ingredient_at_peak", ingredient_diagnostics.get("limiting_ingredient_at_peak", "") if ingredient_diagnostics else ""),
@@ -1155,6 +1219,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--dates-file", help="Optional newline-delimited list of forecast init dates to build in one process")
     parser.add_argument("--cycle", required=True, help="Forecast init cycle, e.g. 00")
     parser.add_argument("--valid-date", help="24-hour valid date YYYY-MM-DD. Defaults to each init date.")
+    parser.add_argument("--valid-start", help="Custom valid-window start time, e.g. 2026-05-05T12:00Z")
+    parser.add_argument("--valid-end", help="Custom valid-window end time, e.g. 2026-05-06T12:00Z. End is exclusive.")
     parser.add_argument(
         "--field",
         choices=[
@@ -1201,6 +1267,10 @@ def main(argv: list[str] | None = None) -> None:
 
     if bool(args.date) == bool(args.dates_file):
         parser.error("provide exactly one of --date or --dates-file")
+    if bool(args.valid_start) != bool(args.valid_end):
+        parser.error("--valid-start and --valid-end must be provided together")
+    if (args.valid_start or args.valid_end) and args.valid_date:
+        parser.error("--valid-date cannot be combined with --valid-start/--valid-end")
     dates = _read_dates_file(Path(args.dates_file)) if args.dates_file else [str(args.date)]
     if not dates:
         parser.error("--dates-file did not contain any dates")
@@ -1219,7 +1289,9 @@ def main(argv: list[str] | None = None) -> None:
         metadata = build_product_bundle(
             date=date,
             cycle=args.cycle,
-            valid_date=selected_valid_date or date,
+            valid_date=None if args.valid_start else selected_valid_date or date,
+            valid_start=args.valid_start,
+            valid_end=args.valid_end,
             field_name=args.field,
             outdir=Path(args.outdir),
             title=args.title if len(dates) == 1 else None,

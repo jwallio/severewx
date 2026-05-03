@@ -337,6 +337,72 @@ def test_build_tornado_concern_product_supports_explicit_24h_valid_date(tmp_path
     assert abs(float(metadata["max_tornado_concern_prob"]) - 0.35) < 1e-9
 
 
+def test_build_tornado_concern_product_supports_custom_12z_valid_window(tmp_path: Path, monkeypatch) -> None:
+    paths = _workflow_paths(tmp_path)
+    for path in [paths.outputs, paths.verification, paths.labels, paths.interim]:
+        path.mkdir(parents=True, exist_ok=True)
+
+    prediction = xr.Dataset(
+        data_vars={
+            "tornado_concern_prob": (
+                ("time", "lat", "lon"),
+                np.array(
+                    [
+                        [[0.01, 0.02], [0.03, 0.04]],
+                        [[0.20, 0.25], [0.10, 0.05]],
+                        [[0.30, 0.35], [0.12, 0.07]],
+                        [[0.80, 0.85], [0.75, 0.70]],
+                    ],
+                    dtype=float,
+                ),
+            ),
+        },
+        coords={
+            "time": pd.to_datetime(
+                [
+                    "2024-04-26T00:00:00",
+                    "2024-04-26T12:00:00",
+                    "2024-04-27T00:00:00",
+                    "2024-04-27T12:00:00",
+                ]
+            ),
+            "lat": [35.0, 36.0],
+            "lon": [-98.0, -97.0],
+        },
+    )
+    prediction.to_netcdf(paths.outputs / "forecast_products_2024-04-26_00.nc")
+    monkeypatch.setattr(product_cli, "load_settings", lambda: AppSettings(raw={}))
+    monkeypatch.setattr(product_cli, "build_paths", lambda _settings: paths)
+
+    outdir = tmp_path / "valid_12z_window_product"
+    product_cli.main(
+        [
+            "--date",
+            "2024-04-26",
+            "--cycle",
+            "00",
+            "--valid-start",
+            "2024-04-26T12:00Z",
+            "--valid-end",
+            "2024-04-27T12:00Z",
+            "--field",
+            "tornado_concern_prob",
+            "--map-style",
+            "contours",
+            "--outdir",
+            str(outdir),
+        ]
+    )
+
+    metadata = pd.read_json(outdir / "tornado_concern_init_2024-04-26_00z_valid_2024-04-26_12z_to_2024-04-27_12z.json", typ="series")
+    assert metadata["product_valid_period"] == "custom_valid_time_window"
+    assert metadata["valid_date"] == "2024-04-26"
+    assert metadata["valid_start"] == "2024-04-26T12:00Z"
+    assert metadata["valid_end"] == "2024-04-27T12:00Z"
+    assert metadata["valid_times"] == ["2024-04-26T12:00:00Z", "2024-04-27T00:00:00Z"]
+    assert abs(float(metadata["max_tornado_concern_prob"]) - 0.35) < 1e-9
+
+
 def test_build_tornado_concern_product_can_render_derived_environment_envelope(tmp_path: Path, monkeypatch) -> None:
     paths = _workflow_paths(tmp_path)
     for path in [paths.outputs, paths.verification, paths.labels, paths.interim]:
