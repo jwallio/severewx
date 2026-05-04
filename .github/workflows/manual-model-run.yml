@@ -1,0 +1,333 @@
+name: Manual Model Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "Workflow task to run"
+        required: true
+        type: choice
+        default: forecast
+        options:
+          - forecast
+          - forecast_consensus
+          - tornado_concern_product
+          - tornado_concern_run_bundle
+          - tornado_concern_checkpoint
+          - verify_day
+      date:
+        description: "Forecast or verification date (YYYY-MM-DD)"
+        required: false
+        default: ""
+        type: string
+      cycle:
+        description: "Forecast cycle (00, 06, 12, 18)"
+        required: false
+        default: "00"
+        type: choice
+        options:
+          - "00"
+          - "06"
+          - "12"
+          - "18"
+      start_date:
+        description: "Inclusive start date for range-based tasks (YYYY-MM-DD)"
+        required: false
+        default: ""
+        type: string
+      end_date:
+        description: "Inclusive end date for range-based tasks (YYYY-MM-DD)"
+        required: false
+        default: ""
+        type: string
+      valid_start:
+        description: "Custom valid-window start, e.g. 2026-05-05T12:00Z"
+        required: false
+        default: ""
+        type: string
+      valid_end:
+        description: "Custom valid-window end, e.g. 2026-05-06T12:00Z"
+        required: false
+        default: ""
+        type: string
+      sources:
+        description: "Consensus sources: auto or comma-delimited list"
+        required: false
+        default: "auto"
+        type: string
+      field_name:
+        description: "Tornado-concern field for single-product builds"
+        required: false
+        default: "tornado_environment_outlook_hybrid"
+        type: string
+      map_style:
+        description: "Map style for single-product builds"
+        required: false
+        type: choice
+        default: outlook
+        options:
+          - outlook
+          - contours
+      map_domain:
+        description: "Map domain for tornado-concern product builds"
+        required: false
+        type: choice
+        default: regional
+        options:
+          - regional
+          - conus
+      artifact_source:
+        description: "Artifact source for tornado-concern single-product builds"
+        required: false
+        type: choice
+        default: auto
+        options:
+          - auto
+          - prediction
+          - consensus
+      display_preset:
+        description: "Display preset for tornado-concern single-product builds"
+        required: false
+        type: choice
+        default: auto
+        options:
+          - auto
+          - weak
+          - standard
+          - broad
+      score_variant:
+        description: "Checkpoint eval score variant"
+        required: false
+        default: baseline
+        type: string
+      tornado_preference_mode:
+        description: "Checkpoint eval tornado preference mode"
+        required: false
+        default: off
+        type: string
+      output_dir:
+        description: "Output directory relative to repo root"
+        required: false
+        default: data/outputs/github_actions/manual_run
+        type: string
+      skip_render:
+        description: "Skip forecast rendering where supported"
+        required: false
+        default: false
+        type: boolean
+      skip_product:
+        description: "Checkpoint only: skip optional product step"
+        required: false
+        default: false
+        type: boolean
+      skip_failure_review:
+        description: "Checkpoint only: skip failure-review packet"
+        required: false
+        default: false
+        type: boolean
+      skip_coverage_refresh:
+        description: "Checkpoint only: skip coverage refresh"
+        required: false
+        default: false
+        type: boolean
+      skip_ready_refresh:
+        description: "Checkpoint only: skip ready-date refresh"
+        required: false
+        default: false
+        type: boolean
+      skip_eval:
+        description: "Checkpoint only: skip eval"
+        required: false
+        default: false
+        type: boolean
+      allow_fallback_publication:
+        description: "Run bundle only: permit fallback Matplotlib publication"
+        required: false
+        default: false
+        type: boolean
+      overwrite:
+        description: "Allow overwriting output files"
+        required: false
+        default: false
+        type: boolean
+      extra_args:
+        description: "Additional CLI arguments appended verbatim"
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libeccodes-dev
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev,grib,ml]
+
+      - name: Build command
+        id: command
+        shell: bash
+        env:
+          TASK: ${{ inputs.task }}
+          DATE: ${{ inputs.date }}
+          CYCLE: ${{ inputs.cycle }}
+          START_DATE: ${{ inputs.start_date }}
+          END_DATE: ${{ inputs.end_date }}
+          VALID_START: ${{ inputs.valid_start }}
+          VALID_END: ${{ inputs.valid_end }}
+          SOURCES: ${{ inputs.sources }}
+          FIELD_NAME: ${{ inputs.field_name }}
+          MAP_STYLE: ${{ inputs.map_style }}
+          MAP_DOMAIN: ${{ inputs.map_domain }}
+          ARTIFACT_SOURCE: ${{ inputs.artifact_source }}
+          DISPLAY_PRESET: ${{ inputs.display_preset }}
+          SCORE_VARIANT: ${{ inputs.score_variant }}
+          TORNADO_PREFERENCE_MODE: ${{ inputs.tornado_preference_mode }}
+          OUTPUT_DIR: ${{ inputs.output_dir }}
+          SKIP_RENDER: ${{ inputs.skip_render }}
+          SKIP_PRODUCT: ${{ inputs.skip_product }}
+          SKIP_FAILURE_REVIEW: ${{ inputs.skip_failure_review }}
+          SKIP_COVERAGE_REFRESH: ${{ inputs.skip_coverage_refresh }}
+          SKIP_READY_REFRESH: ${{ inputs.skip_ready_refresh }}
+          SKIP_EVAL: ${{ inputs.skip_eval }}
+          ALLOW_FALLBACK_PUBLICATION: ${{ inputs.allow_fallback_publication }}
+          OVERWRITE: ${{ inputs.overwrite }}
+          EXTRA_ARGS: ${{ inputs.extra_args }}
+        run: |
+          python - <<'PY'
+          import os
+          import shlex
+          import sys
+
+          def add_arg(args, flag, value):
+              if value:
+                  args.extend([flag, value])
+
+          def add_bool(args, flag, enabled):
+              if str(enabled).lower() == "true":
+                  args.append(flag)
+
+          task = os.environ["TASK"]
+          output_dir = os.environ["OUTPUT_DIR"] or "data/outputs/github_actions/manual_run"
+          commands = {
+              "forecast": ["python", "-m", "severewx.cli.run_forecast"],
+              "forecast_consensus": ["python", "-m", "severewx.cli.run_forecast_consensus"],
+              "tornado_concern_product": ["python", "-m", "severewx.cli.build_tornado_concern_product"],
+              "tornado_concern_run_bundle": ["python", "-m", "severewx.cli.build_tornado_concern_run_bundle"],
+              "tornado_concern_checkpoint": ["python", "-m", "severewx.cli.run_tornado_concern_checkpoint"],
+              "verify_day": ["python", "-m", "severewx.cli.verify_day"],
+          }
+          if task not in commands:
+              raise SystemExit(f"unsupported task: {task}")
+
+          args = list(commands[task])
+          if task in {"forecast", "forecast_consensus"}:
+              add_arg(args, "--date", os.environ["DATE"])
+              add_arg(args, "--cycle", os.environ["CYCLE"])
+              add_bool(args, "--skip-render", os.environ["SKIP_RENDER"])
+              if task == "forecast_consensus":
+                  add_arg(args, "--sources", os.environ["SOURCES"])
+          elif task == "tornado_concern_product":
+              add_arg(args, "--date", os.environ["DATE"])
+              add_arg(args, "--cycle", os.environ["CYCLE"])
+              add_arg(args, "--outdir", output_dir)
+              add_arg(args, "--field", os.environ["FIELD_NAME"])
+              add_arg(args, "--map-style", os.environ["MAP_STYLE"])
+              add_arg(args, "--map-domain", os.environ["MAP_DOMAIN"])
+              add_arg(args, "--artifact-source", os.environ["ARTIFACT_SOURCE"])
+              add_arg(args, "--display-preset", os.environ["DISPLAY_PRESET"])
+              add_arg(args, "--valid-start", os.environ["VALID_START"])
+              add_arg(args, "--valid-end", os.environ["VALID_END"])
+              add_bool(args, "--require-production-basemap", str(not str(os.environ["ALLOW_FALLBACK_PUBLICATION"]).lower() == "true"))
+              add_bool(args, "--overwrite", os.environ["OVERWRITE"])
+          elif task == "tornado_concern_run_bundle":
+              add_arg(args, "--date", os.environ["DATE"])
+              add_arg(args, "--cycle", os.environ["CYCLE"])
+              add_arg(args, "--valid-start", os.environ["VALID_START"])
+              add_arg(args, "--valid-end", os.environ["VALID_END"])
+              add_arg(args, "--outdir", output_dir)
+              add_bool(args, "--allow-fallback-publication", os.environ["ALLOW_FALLBACK_PUBLICATION"])
+              add_bool(args, "--overwrite", os.environ["OVERWRITE"])
+          elif task == "tornado_concern_checkpoint":
+              add_arg(args, "--start", os.environ["START_DATE"])
+              add_arg(args, "--end", os.environ["END_DATE"])
+              add_arg(args, "--output-dir", output_dir)
+              add_arg(args, "--product-date", os.environ["DATE"])
+              add_arg(args, "--product-cycle", os.environ["CYCLE"])
+              add_arg(args, "--score-variant", os.environ["SCORE_VARIANT"])
+              add_arg(args, "--tornado-preference-mode", os.environ["TORNADO_PREFERENCE_MODE"])
+              add_bool(args, "--skip-product", os.environ["SKIP_PRODUCT"])
+              add_bool(args, "--skip-failure-review", os.environ["SKIP_FAILURE_REVIEW"])
+              add_bool(args, "--skip-coverage-refresh", os.environ["SKIP_COVERAGE_REFRESH"])
+              add_bool(args, "--skip-ready-refresh", os.environ["SKIP_READY_REFRESH"])
+              add_bool(args, "--skip-eval", os.environ["SKIP_EVAL"])
+              add_bool(args, "--overwrite", os.environ["OVERWRITE"])
+          elif task == "verify_day":
+              add_arg(args, "--date", os.environ["DATE"])
+
+          extra_args = os.environ.get("EXTRA_ARGS", "").strip()
+          if extra_args:
+              args.extend(shlex.split(extra_args))
+
+          required = {
+              "forecast": ["DATE", "CYCLE"],
+              "forecast_consensus": ["DATE", "CYCLE"],
+              "tornado_concern_product": ["DATE", "CYCLE", "OUTPUT_DIR"],
+              "tornado_concern_run_bundle": ["DATE", "CYCLE", "VALID_START", "VALID_END", "OUTPUT_DIR"],
+              "tornado_concern_checkpoint": ["START_DATE", "END_DATE", "OUTPUT_DIR"],
+              "verify_day": ["DATE"],
+          }
+          missing = [name.lower() for name in required[task] if not os.environ.get(name, "").strip()]
+          if missing:
+              raise SystemExit(f"missing required workflow inputs for {task}: {', '.join(missing)}")
+
+          command = shlex.join(args)
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"command={command}\n")
+              fh.write(f"artifact_dir={output_dir}\n")
+          print(command)
+          PY
+
+      - name: Run selected task
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Running: ${{ steps.command.outputs.command }}"
+          ${{ steps.command.outputs.command }}
+
+      - name: Write run summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Manual Model Run"
+            echo
+            echo "- Task: \`${{ inputs.task }}\`"
+            echo "- Command: \`${{ steps.command.outputs.command }}\`"
+            echo "- Artifact directory: \`${{ steps.command.outputs.artifact_dir }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: manual-model-run-${{ github.run_number }}
+          path: ${{ steps.command.outputs.artifact_dir }}
+          if-no-files-found: warn

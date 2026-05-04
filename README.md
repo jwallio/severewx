@@ -180,6 +180,30 @@ Build archive site:
 python -m severewx.cli.build_archive_site
 ```
 
+## GitHub Actions Manual Runs
+
+The repo now includes a manual GitHub Actions workflow at [.github/workflows/manual-model-run.yml](/d:/severewx/.github/workflows/manual-model-run.yml).
+
+Open the `Actions` tab, choose `Manual Model Run`, then click `Run workflow`. The menu exposes these task choices:
+
+- `forecast`: runs `python -m severewx.cli.run_forecast`
+- `forecast_consensus`: runs `python -m severewx.cli.run_forecast_consensus`
+- `tornado_concern_product`: runs `python -m severewx.cli.build_tornado_concern_product`
+- `tornado_concern_run_bundle`: runs `python -m severewx.cli.build_tornado_concern_run_bundle`
+- `tornado_concern_checkpoint`: runs `python -m severewx.cli.run_tornado_concern_checkpoint`
+- `verify_day`: runs `python -m severewx.cli.verify_day`
+
+Common inputs are passed through the workflow menu:
+
+- `date` and `cycle` for forecast/product runs
+- `start_date` and `end_date` for checkpoint runs
+- `valid_start` and `valid_end` for custom tornado-concern windows
+- `sources` for consensus source selection
+- `output_dir` for artifact placement
+- `extra_args` for any additional CLI flags not represented directly in the menu
+
+Each run uploads the selected output directory as a GitHub Actions artifact and writes the exact command to the job summary.
+
 ## Staged Local GFS Workflow
 
 Recommended staged folder structure:
