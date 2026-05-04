@@ -204,6 +204,27 @@ Common inputs are passed through the workflow menu:
 
 Each run uploads the selected output directory as a GitHub Actions artifact and writes the exact command to the job summary.
 
+## GitHub Pages Run Browser
+
+The repo also includes a Pages deployment workflow at [.github/workflows/github-pages.yml](/d:/severewx/.github/workflows/github-pages.yml).
+
+It builds the static archive browser with:
+
+```bash
+python -m severewx.cli.build_archive_site
+```
+
+and publishes `data/archive/` to GitHub Pages.
+
+The generated site is self-contained for Pages hosting:
+
+- forecast maps are copied into the publish tree
+- verification case-review boards are copied into the publish tree
+- tornado-concern run bundles are indexed from `data/outputs/verification/**/manifest.json`
+- run-bundle images, summaries, and metadata files are linked directly from the site
+
+To enable it in GitHub, allow Actions-based Pages deployment in the repository Pages settings, then run the `Deploy GitHub Pages` workflow or push the site-related changes to the default branch.
+
 ## Staged Local GFS Workflow
 
 Recommended staged folder structure:
