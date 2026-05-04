@@ -25,7 +25,7 @@ from severewx.models.tornado_concern import (
     tornado_environment_outlook_hybrid_grid,
     tornado_environment_outlook_v2_grid,
 )
-from severewx.render.layout import SUBTITLE_COLOR, TEXT_COLOR, create_map_figure, map_draw_kwargs, style_map_axes
+from severewx.render.layout import SUBTITLE_COLOR, TEXT_COLOR, conus_template, create_map_figure, map_draw_kwargs, style_map_axes
 from severewx.utils.paths import build_paths
 
 
@@ -407,6 +407,24 @@ def _set_map_extent(ax: Any, extent: tuple[float, float, float, float]) -> None:
     ax.set_ylim(lat_min, lat_max)
 
 
+def _annotate_no_visible_signal(ax: Any, *, map_style: str) -> None:
+    if map_style not in {"contours", "outlook"}:
+        return
+    label = "No visible 2% outlook signal" if map_style == "outlook" else "No visible 2% tornado concern signal"
+    ax.text(
+        0.5,
+        0.50,
+        label,
+        transform=ax.transAxes,
+        ha="center",
+        va="center",
+        fontsize=10.5,
+        color="#4d5560",
+        bbox={"boxstyle": "round,pad=0.45", "facecolor": "#f6f8fa", "edgecolor": "#d4dbe2", "alpha": 0.92},
+        zorder=6,
+    )
+
+
 def _prediction_artifact_for_cycle(outputs_dir: Path, date: str, cycle: str) -> Path | None:
     exact = outputs_dir / f"forecast_products_{date}_{cycle}.nc"
     if exact.exists():
@@ -419,7 +437,15 @@ def _consensus_artifact_for_cycle(outputs_dir: Path, date: str, cycle: str) -> P
     return exact if exact.exists() else None
 
 
-def _select_prediction_artifact(outputs_dir: Path, date: str, cycle: str, field_name: str) -> tuple[Path | None, str]:
+def _select_prediction_artifact(outputs_dir: Path, date: str, cycle: str, field_name: str, *, artifact_source: str = "auto") -> tuple[Path | None, str]:
+    if artifact_source == "prediction":
+        if field_name == DEFAULT_CONSENSUS_PRODUCT_FIELD:
+            raise ValueError("--artifact-source prediction cannot be combined with the consensus field")
+        return _prediction_artifact_for_cycle(outputs_dir, date, cycle), field_name
+    if artifact_source == "consensus":
+        return _consensus_artifact_for_cycle(outputs_dir, date, cycle), DEFAULT_CONSENSUS_PRODUCT_FIELD if field_name == DEFAULT_PRODUCT_FIELD else field_name
+    if artifact_source != "auto":
+        raise ValueError(f"unsupported artifact source: {artifact_source}")
     if field_name == DEFAULT_PRODUCT_FIELD:
         consensus = _consensus_artifact_for_cycle(outputs_dir, date, cycle)
         if consensus is not None:
@@ -774,6 +800,18 @@ def _consensus_readiness_audit(dataset: xr.Dataset, field_name: str) -> dict[str
     }
 
 
+def _render_readiness_audit(render_metadata: dict[str, Any], *, require_production_basemap: bool) -> dict[str, Any]:
+    if not require_production_basemap:
+        return {"status": "skipped", "public_ready": True, "failure_reasons": ""}
+    if bool(render_metadata.get("render_uses_cartopy", False)):
+        return {"status": "ok", "public_ready": True, "failure_reasons": ""}
+    return {
+        "status": "flagged",
+        "public_ready": False,
+        "failure_reasons": "render_basemap_fallback",
+    }
+
+
 def _format_valid_time(value: str) -> str:
     return pd.Timestamp(value).strftime("%Y-%m-%d %HZ")
 
@@ -848,17 +886,20 @@ def _render_product_map(
     lat_values = dataset["lat"].values
     lon_values = dataset["lon"].values
     settings = settings or load_settings()
+    render_template = conus_template(settings)
     fig, ax = create_map_figure(settings)
     values = np.asarray(aggregate.values, dtype=float)
     draw_kwargs = map_draw_kwargs(ax)
     label_count = 0
     extent_values = values
+    display_visible_signal = True
     resolved_preset = _resolve_display_preset(values, display_preset) if map_style == "outlook" else "standard"
     if map_style == "outlook":
         public_display_values = _public_display_outlook_field(values, display_preset=resolved_preset)
         extent_values = public_display_values
         display_lon, display_lat, display_values = _upsample_grid_for_display(lon_values, lat_values, public_display_values)
         display_values = np.where(display_values >= 0.02, display_values, np.nan)
+        display_visible_signal = bool(np.isfinite(display_values).any())
         cmap = ListedColormap(list(OUTLOOK_COLORS), name="tornado_concern_outlook")
         norm = BoundaryNorm(OUTLOOK_BINS, len(OUTLOOK_COLORS), clip=True)
         mesh = ax.contourf(
@@ -889,6 +930,7 @@ def _render_product_map(
         display_lon, display_lat, display_values = _upsample_grid_for_display(lon_values, lat_values, public_display_values)
         display_levels = tuple(value for value in PRODUCT_BINS if value >= CONTOUR_DISPLAY_MIN_THRESHOLD)
         display_values = np.where(display_values >= CONTOUR_DISPLAY_MIN_THRESHOLD, display_values, np.nan)
+        display_visible_signal = bool(np.isfinite(display_values).any())
         contour_colors = PRODUCT_COLORS[1:]
         cmap = ListedColormap(list(contour_colors), name="tornado_concern_product_contours")
         norm = BoundaryNorm(display_levels, len(contour_colors), clip=True)
@@ -930,6 +972,8 @@ def _render_product_map(
     regional_extent = _display_extent(lon_values, lat_values, extent_values, map_domain=map_domain)
     if regional_extent is not None:
         _set_map_extent(ax, regional_extent)
+    if not display_visible_signal:
+        _annotate_no_visible_signal(ax, map_style=map_style)
     ax.set_title(title, loc="left", fontsize=14, fontweight="bold", color=TEXT_COLOR, pad=16)
     ax.text(
         0.0,
@@ -978,6 +1022,11 @@ def _render_product_map(
         "contour_label_count": int(label_count),
         "map_extent": list(regional_extent) if regional_extent is not None else list(CONUS_EXTENT),
         "display_preset_effective": resolved_preset,
+        "display_visible_signal": display_visible_signal,
+        "render_projection_name": render_template.projection_name,
+        "render_uses_cartopy": render_template.use_cartopy,
+        "render_basemap_mode": "cartopy" if render_template.use_cartopy else "matplotlib_fallback",
+        "render_basemap_warning": "" if render_template.use_cartopy else "cartopy_unavailable_or_disabled",
     }
 
 
@@ -1060,6 +1109,8 @@ def build_product_bundle(
     map_style: str = "contours",
     map_domain: str = "conus",
     display_preset: str = "auto",
+    artifact_source: str = "auto",
+    require_production_basemap: bool = False,
     audit_public_readiness: bool = True,
     overwrite: bool = False,
     settings: Any | None = None,
@@ -1068,7 +1119,7 @@ def build_product_bundle(
     settings = settings or load_settings()
     paths = paths or build_paths(settings)
     cycle = _normalize_cycle(cycle)
-    prediction_path, field_name = _select_prediction_artifact(paths.outputs, date, cycle, field_name)
+    prediction_path, field_name = _select_prediction_artifact(paths.outputs, date, cycle, field_name, artifact_source=artifact_source)
     if prediction_path is None:
         raise FileNotFoundError(f"missing tornado-concern forecast artifact for {date} {cycle}Z")
     metadata_path = _metadata_for_prediction_artifact(paths.outputs, date, cycle, prediction_path)
@@ -1144,12 +1195,14 @@ def build_product_bundle(
         )
     display_audit_result = _display_readiness_audit(display_stats, map_style=map_style)
     consensus_audit_result = _consensus_readiness_audit(valid_dataset, field_name)
+    render_audit_result = _render_readiness_audit(render_metadata, require_production_basemap=require_production_basemap)
     combined_failure_reasons = ";".join(
         reason
         for reason in [
             str(artifact_audit_result.get("failure_reasons", "") or ""),
             str(display_audit_result.get("failure_reasons", "") or ""),
             str(consensus_audit_result.get("failure_reasons", "") or ""),
+            str(render_audit_result.get("failure_reasons", "") or ""),
         ]
         if reason
     )
@@ -1157,7 +1210,16 @@ def build_product_bundle(
         bool(artifact_audit_result.get("public_ready", False))
         and bool(display_audit_result.get("public_ready", False))
         and bool(consensus_audit_result.get("public_ready", True))
+        and bool(render_audit_result.get("public_ready", True))
     )
+    publication_status = "public_candidate" if combined_public_ready else "internal_review_only"
+    non_render_public_ready = (
+        bool(artifact_audit_result.get("public_ready", False))
+        and bool(display_audit_result.get("public_ready", False))
+        and bool(consensus_audit_result.get("public_ready", True))
+    )
+    if not combined_public_ready and non_render_public_ready and render_audit_result.get("failure_reasons") == "render_basemap_fallback":
+        publication_status = "needs_render_review"
     product_metadata: dict[str, Any] = {
         "date": date,
         "init_date": date,
@@ -1178,6 +1240,8 @@ def build_product_bundle(
         "display_transform": "outlook_envelope_field" if map_style == "outlook" else "neighborhood_supported_public_field" if map_style == "contours" else "raw_grid_values",
         "display_preset_requested": display_preset,
         "display_preset_effective": render_metadata.get("display_preset_effective", display_stats.get("display_preset_effective", "standard")),
+        "artifact_source_requested": artifact_source,
+        "production_basemap_required": require_production_basemap,
         "display_neighborhood_radius_cells": PUBLIC_DISPLAY_NEIGHBORHOOD_RADIUS if map_style == "contours" else 0,
         "display_envelope_gain": PUBLIC_DISPLAY_ENVELOPE_GAIN if map_style == "contours" else 1.0,
         "display_peak_support_cap_gain": PUBLIC_DISPLAY_PEAK_SUPPORT_CAP_GAIN if map_style == "contours" else 1.0,
@@ -1195,10 +1259,11 @@ def build_product_bundle(
         "public_ready": combined_public_ready,
         "audit_status": "ok" if combined_public_ready else "flagged",
         "failure_reasons": combined_failure_reasons,
-        "publication_status": "public_candidate" if combined_public_ready else "internal_review_only",
+        "publication_status": publication_status,
         "product_audit": artifact_audit_result,
         "display_audit": display_audit_result,
         "consensus_audit": consensus_audit_result,
+        "render_audit": render_audit_result,
         **render_metadata,
         "ingredient_diagnostics": ingredient_diagnostics,
         "reference_design_notes": [
@@ -1236,6 +1301,8 @@ def build_product_bundle(
         ("product_valid_period", product_metadata["product_valid_period"]),
         ("variant", product_metadata["variant"]),
         ("field_name", field_name),
+        ("artifact_source_requested", product_metadata["artifact_source_requested"]),
+        ("production_basemap_required", str(product_metadata["production_basemap_required"])),
         ("map_style", map_style),
         ("map_domain", map_domain),
         ("display_preset", product_metadata["display_preset_effective"]),
@@ -1245,6 +1312,9 @@ def build_product_bundle(
         ("display_signal_floor", product_metadata["display_signal_floor"]),
         ("display_interpolation", product_metadata["display_interpolation"]),
         ("display_min_threshold", f"{float(product_metadata['display_min_threshold']):.2f}"),
+        ("display_visible_signal", str(product_metadata.get("display_visible_signal", True))),
+        ("render_basemap_mode", product_metadata.get("render_basemap_mode", "")),
+        ("render_basemap_warning", product_metadata.get("render_basemap_warning", "") or "none"),
         ("publication_status", product_metadata["publication_status"]),
         ("public_ready", str(product_metadata["public_ready"])),
         ("audit_status", product_metadata["audit_status"]),
@@ -1340,6 +1410,17 @@ def main(argv: list[str] | None = None) -> None:
         default="auto",
         help="Outlook display filtering preset. 'auto' selects weak, standard, or broad from the product footprint.",
     )
+    parser.add_argument(
+        "--artifact-source",
+        choices=["auto", "prediction", "consensus"],
+        default="auto",
+        help="Forecast artifact source. 'auto' preserves consensus preference for the default hybrid field; 'prediction' forces forecast_products.",
+    )
+    parser.add_argument(
+        "--require-production-basemap",
+        action="store_true",
+        help="Mark products rendered without Cartopy as needs_render_review/internal-only.",
+    )
     parser.add_argument("--overwrite", action="store_true", help="Overwrite any existing product files in the target outdir")
     parser.add_argument("--skip-audit", action="store_true", help="Skip public-readiness audit metadata")
     args = parser.parse_args(argv)
@@ -1379,6 +1460,8 @@ def main(argv: list[str] | None = None) -> None:
             map_style=args.map_style,
             map_domain=args.map_domain,
             display_preset=args.display_preset,
+            artifact_source=args.artifact_source,
+            require_production_basemap=bool(args.require_production_basemap),
             audit_public_readiness=not bool(args.skip_audit),
             overwrite=bool(args.overwrite),
             settings=settings,

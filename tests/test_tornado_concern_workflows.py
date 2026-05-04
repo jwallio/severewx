@@ -9,6 +9,7 @@ import pandas as pd
 import xarray as xr
 
 from severewx.cli import build_tornado_concern_product as product_cli
+from severewx.cli import build_tornado_concern_run_bundle as run_bundle_cli
 from severewx.cli import build_tornado_concern_public_candidates as public_candidates_cli
 from severewx.cli import build_tornado_concern_spc_comparison as spc_comparison_cli
 from severewx.cli import compare_tornado_concern_component_delta as delta_cli
@@ -25,6 +26,7 @@ from severewx.cli import tornado_concern_failure_review as review_cli
 from severewx.cli import tornado_concern_field_diagnostics as field_diagnostics_cli
 from severewx.cli import tornado_concern_product_audit as product_audit_cli
 from severewx.cli import tornado_concern_product_quality as product_quality_cli
+from severewx.cli import tornado_concern_product_status as product_status_cli
 from severewx.config import AppSettings
 from severewx.models.forecast_consensus import CONSENSUS_FIELD
 from severewx.models.tornado_concern import coherent_tornado_concern_grid, envelope_tornado_concern_grid
@@ -195,6 +197,14 @@ def test_build_tornado_concern_product_prefers_consensus_artifact_when_present(t
             "lon": [-100.0, -99.0, -98.0, -97.0, -96.0],
         },
     ).to_netcdf(paths.outputs / "forecast_consensus_2024-04-26_00.nc")
+    xr.Dataset(
+        {"tornado_environment_outlook_hybrid": (("time", "lat", "lon"), np.full((1, 5, 5), 0.20, dtype=np.float32))},
+        coords={
+            "time": pd.to_datetime(["2024-04-26T00:00:00"]),
+            "lat": [33.0, 34.0, 35.0, 36.0, 37.0],
+            "lon": [-100.0, -99.0, -98.0, -97.0, -96.0],
+        },
+    ).to_netcdf(paths.outputs / "forecast_products_2024-04-26_00.nc")
     (paths.outputs / "forecast_consensus_metadata_2024-04-26_00.json").write_text(
         json.dumps(
             {
@@ -224,6 +234,21 @@ def test_build_tornado_concern_product_prefers_consensus_artifact_when_present(t
     assert metadata["publication_status"] == "public_candidate"
     assert metadata["consensus_audit"]["max_signal_agreement_count"] == 2
     assert metadata["forecast_consensus_summary"]["included_sources"] == ["hrrr_recent", "rap_recent", "aws_recent"]
+
+    direct_metadata = product_cli.build_product_bundle(
+        date="2024-04-26",
+        cycle="00",
+        outdir=tmp_path / "product_direct",
+        map_style="outlook",
+        map_domain="conus",
+        artifact_source="prediction",
+        overwrite=True,
+    )
+
+    assert direct_metadata["source_forecast_artifact_path"].endswith("forecast_products_2024-04-26_00.nc")
+    assert direct_metadata["field_name"] == "tornado_environment_outlook_hybrid"
+    assert direct_metadata["artifact_source_requested"] == "prediction"
+    assert float(direct_metadata["max_tornado_concern_prob"]) == 0.20000000298023224
 
 
 def test_build_tornado_concern_product_marks_single_source_consensus_internal_only(tmp_path: Path, monkeypatch) -> None:
@@ -622,6 +647,39 @@ def test_display_extent_auto_zooms_to_outlook_footprint() -> None:
     assert lon_max < -66.5
 
 
+def test_render_product_map_records_no_visible_outlook_signal(tmp_path: Path) -> None:
+    dataset = xr.Dataset(
+        {"tornado_environment_outlook": (("time", "lat", "lon"), np.zeros((1, 8, 8), dtype=float))},
+        coords={
+            "time": pd.to_datetime(["2024-05-21T00:00:00"]),
+            "lat": np.linspace(30.0, 44.0, 8),
+            "lon": np.linspace(-104.0, -90.0, 8),
+        },
+    )
+    image_path = tmp_path / "blank_outlook.png"
+
+    metadata = product_cli._render_product_map(
+        dataset,
+        field_name="tornado_environment_outlook",
+        date="2024-05-21",
+        cycle="00",
+        valid_date="2024-05-21",
+        valid_period_label="2024-05-21 00-24 UTC",
+        title="Tornado Concern Outlook | Valid 2024-05-21 00-24 UTC",
+        summary_text="",
+        image_path=image_path,
+        map_style="outlook",
+        map_domain="regional",
+        settings=AppSettings(raw={"render": {"cartopy": False}}),
+    )
+
+    assert image_path.exists()
+    assert not bool(metadata["display_visible_signal"])
+    assert metadata["map_extent"] == list(product_cli.CONUS_EXTENT)
+    assert metadata["render_basemap_mode"] == "matplotlib_fallback"
+    assert metadata["render_basemap_warning"] == "cartopy_unavailable_or_disabled"
+
+
 def test_display_preset_auto_selects_weak_standard_and_broad() -> None:
     weak = np.zeros((12, 12), dtype=float)
     weak[3:8, 3:8] = 0.10
@@ -784,6 +842,169 @@ def test_product_quality_cli_scores_and_splits_review_folders(tmp_path: Path) ->
     assert (tmp_path / "best" / "2024-05-21.png").exists()
     assert (tmp_path / "needs" / "2024-05-30.png").exists()
     assert "Queue Counts" in (tmp_path / "failure_queue.md").read_text(encoding="utf-8")
+
+
+def test_product_status_cli_summarizes_direct_and_consensus_metadata(tmp_path: Path) -> None:
+    products_dir = tmp_path / "products"
+    products_dir.mkdir()
+    direct_path = products_dir / "direct.json"
+    consensus_path = products_dir / "consensus.json"
+    direct_path.write_text(
+        json.dumps(
+            {
+                "date": "2026-05-03",
+                "cycle": "00",
+                "valid_period_label": "2026-05-05 12Z to 2026-05-06 12Z",
+                "variant": "environment_outlook_hybrid",
+                "field_name": "tornado_environment_outlook_hybrid",
+                "map_style": "outlook",
+                "map_domain": "conus",
+                "artifact_source_requested": "prediction",
+                "render_basemap_mode": "cartopy",
+                "render_basemap_warning": "",
+                "publication_status": "public_candidate",
+                "public_ready": True,
+                "display_visible_signal": True,
+                "max_public_display_tornado_concern_prob": 0.30,
+                "public_display_grid_cells_ge_02pct": 156,
+                "display_largest_object_cells_ge_02pct": 83,
+                "forecast_ingest_summary": {"source": "aws_recent"},
+                "main_image_path": str(products_dir / "direct.png"),
+            }
+        ),
+        encoding="utf-8",
+    )
+    consensus_path.write_text(
+        json.dumps(
+            {
+                "date": "2026-05-03",
+                "cycle": "00",
+                "valid_period_label": "2026-05-05 12Z to 2026-05-06 12Z",
+                "variant": "environment_outlook_hybrid_consensus",
+                "field_name": CONSENSUS_FIELD,
+                "map_style": "outlook",
+                "map_domain": "conus",
+                "artifact_source_requested": "consensus",
+                "render_basemap_mode": "matplotlib_fallback",
+                "render_basemap_warning": "cartopy_unavailable_or_disabled",
+                "publication_status": "internal_review_only",
+                "public_ready": False,
+                "display_visible_signal": False,
+                "failure_reasons": "display_no_visible_signal;consensus_less_than_two_supporting_sources",
+                "max_public_display_tornado_concern_prob": 0.0,
+                "forecast_consensus_summary": {"included_sources": ["aws_recent"], "excluded_sources": [{"source": "nam_recent"}]},
+                "consensus_audit": {"max_signal_agreement_count": 1},
+                "main_image_path": str(products_dir / "consensus.png"),
+            }
+        ),
+        encoding="utf-8",
+    )
+    output_csv = tmp_path / "status.csv"
+    output_md = tmp_path / "status.md"
+
+    product_status_cli.main(["--products-dir", str(products_dir), "--output-csv", str(output_csv), "--output-md", str(output_md)])
+
+    frame = pd.read_csv(output_csv)
+    assert set(frame["publication_status"]) == {"public_candidate", "internal_review_only"}
+    consensus = frame.loc[frame["variant"] == "environment_outlook_hybrid_consensus"].iloc[0]
+    assert not bool(consensus["display_visible_signal"])
+    assert consensus["render_basemap_mode"] == "matplotlib_fallback"
+    assert int(consensus["source_count"]) == 1
+    assert int(consensus["excluded_source_count"]) == 1
+    assert "consensus_less_than_two_supporting_sources" in consensus["failure_reasons"]
+    markdown = output_md.read_text(encoding="utf-8")
+    assert "Tornado Concern Product Status" in markdown
+    assert "internal_review_only" in markdown
+    assert "matplotlib_fallback" in markdown
+    assert product_status_cli.blocked_status_count(frame) == 1
+    assert product_status_cli.fallback_render_count(frame) == 1
+    try:
+        product_status_cli.main(["--products-dir", str(products_dir), "--fail-on-blocked"])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("expected --fail-on-blocked to exit nonzero")
+
+
+def test_run_bundle_cli_builds_direct_consensus_and_status_outputs(tmp_path: Path, monkeypatch) -> None:
+    calls = []
+
+    def fake_build_product_bundle(**kwargs):
+        calls.append(kwargs)
+        outdir = Path(kwargs["outdir"])
+        outdir.mkdir(parents=True, exist_ok=True)
+        variant = "environment_outlook_hybrid_consensus" if kwargs["artifact_source"] == "consensus" else "environment_outlook_hybrid"
+        publication_status = "needs_render_review" if kwargs.get("require_production_basemap") else "public_candidate"
+        if kwargs["artifact_source"] == "consensus":
+            publication_status = "internal_review_only"
+        payload = {
+            "date": kwargs["date"],
+            "cycle": kwargs["cycle"],
+            "valid_period_label": "2026-05-05 12Z to 2026-05-06 12Z",
+            "variant": variant,
+            "field_name": kwargs["field_name"],
+            "map_style": kwargs["map_style"],
+            "map_domain": kwargs["map_domain"],
+            "artifact_source_requested": kwargs["artifact_source"],
+            "production_basemap_required": kwargs.get("require_production_basemap", False),
+            "render_basemap_mode": "matplotlib_fallback",
+            "render_basemap_warning": "cartopy_unavailable_or_disabled",
+            "publication_status": publication_status,
+            "public_ready": publication_status == "public_candidate",
+            "display_visible_signal": kwargs["artifact_source"] != "consensus",
+            "failure_reasons": "consensus_less_than_two_supporting_sources" if kwargs["artifact_source"] == "consensus" else "render_basemap_fallback",
+            "max_public_display_tornado_concern_prob": 0.0 if kwargs["artifact_source"] == "consensus" else 0.30,
+            "public_display_grid_cells_ge_02pct": 0 if kwargs["artifact_source"] == "consensus" else 156,
+            "public_display_grid_cells_ge_10pct": 0 if kwargs["artifact_source"] == "consensus" else 21,
+            "display_largest_object_cells_ge_02pct": 0 if kwargs["artifact_source"] == "consensus" else 83,
+            "top_valid_date": "2026-05-06",
+            "ingredient_diagnostics": {
+                "peak_lat": 31.25,
+                "peak_lon": -97.25,
+                "limiting_ingredient_at_peak": "scp_proxy",
+                "ingredient_normalized_at_peak": {"scp_proxy": 0.64},
+                "ingredient_values_at_peak": {"scp_proxy": 0.478},
+            },
+            "forecast_consensus_summary": {"included_sources": ["aws_recent"], "excluded_sources": [{"source": "nam_recent"}]},
+            "consensus_audit": {"max_signal_agreement_count": 1},
+            "main_image_path": str(outdir / "map.png"),
+            "metadata_path": str(outdir / "metadata.json"),
+            "summary_path": str(outdir / "summary.md"),
+        }
+        Path(payload["metadata_path"]).write_text(json.dumps(payload), encoding="utf-8")
+        return payload
+
+    monkeypatch.setattr(run_bundle_cli, "build_product_bundle", fake_build_product_bundle)
+
+    result = run_bundle_cli.build_run_bundle(
+        date="2026-05-03",
+        cycle="00",
+        valid_start="2026-05-05T12:00Z",
+        valid_end="2026-05-06T12:00Z",
+        outdir=tmp_path / "bundle",
+        overwrite=True,
+    )
+
+    assert len(calls) == 3
+    assert {call["artifact_source"] for call in calls} == {"prediction", "consensus"}
+    assert all(call["require_production_basemap"] for call in calls)
+    status = pd.read_csv(result["status_csv"])
+    assert set(status["map_domain"]) == {"regional", "conus"}
+    assert "needs_render_review" in set(status["publication_status"])
+    manifest = json.loads(Path(result["manifest_json"]).read_text(encoding="utf-8"))
+    environment = json.loads(Path(result["environment_json"]).read_text(encoding="utf-8"))
+    assert set(manifest["products"]) == {"direct_regional", "direct_conus", "consensus_conus"}
+    assert manifest["status_md"] == result["status_md"]
+    assert "cartopy_available" in environment
+    assert environment["production_basemap_required"]
+    run_summary = Path(result["run_summary_md"]).read_text(encoding="utf-8")
+    assert "Direct Regional Quality" in run_summary
+    assert "Environment" in run_summary
+    assert "Consensus Source Availability" in run_summary
+    assert "excluded_sources" in run_summary
+    assert "nam_recent" in run_summary
+    assert "Recommended Next Actions" in run_summary
+    assert "Install/enable Cartopy" in run_summary
 
 
 def test_field_diagnostics_cli_compares_outlook_challenger(tmp_path: Path, monkeypatch) -> None:

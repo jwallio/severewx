@@ -306,6 +306,45 @@ Hazard and outbreak products use daily maxima from the forecast run. Confidence 
 
 The renderer now uses a fixed CONUS template for both forecast products and case-review boards. When `cartopy` is available and `render.cartopy: true`, panels use a lower-48 `PlateCarree` view with a standard severe-weather national extent, thin state boundaries, and a restrained national outline. If Cartopy is unavailable or disabled, the system falls back to the same fixed CONUS extent in plain Matplotlib without failing the workflow.
 
+### Tornado-Concern Run Bundles
+
+Use the run-bundle workflow for a custom tornado-concern valid window. It builds direct regional, direct CONUS, and consensus CONUS products, then writes machine-readable status and environment artifacts.
+
+```bash
+.venv/bin/python -m severewx.cli.build_tornado_concern_run_bundle \
+  --date 2026-05-03 \
+  --cycle 00 \
+  --valid-start 2026-05-05T12:00Z \
+  --valid-end 2026-05-06T12:00Z \
+  --outdir data/outputs/verification/run_bundle_2026-05-05_12z_to_2026-05-06_12z \
+  --overwrite
+```
+
+Bundle outputs:
+
+- `direct_regional/`: prediction-sourced regional outlook.
+- `direct_conus/`: prediction-sourced CONUS outlook.
+- `consensus_conus/`: consensus-sourced CONUS outlook.
+- `status.md` and `status.csv`: readiness table across products.
+- `run_summary.md`: direct regional quality, consensus source availability, and recommended next actions.
+- `manifest.json`: deterministic paths to generated product artifacts.
+- `environment.json`: render/basemap readiness, including Cartopy availability.
+
+By default the bundle requires a production basemap. If Cartopy is unavailable, products with otherwise visible signal are marked `needs_render_review`; products with forecast or consensus failures remain `internal_review_only`. Pass `--allow-fallback-publication` only for internal smoke tests.
+
+For a single product, use `build_tornado_concern_product` directly. `--artifact-source prediction` forces `forecast_products_*`; `--artifact-source consensus` forces `forecast_consensus_*`; `--artifact-source auto` preserves the default consensus preference for the hybrid field when consensus exists.
+
+To check generated metadata without rerendering:
+
+```bash
+.venv/bin/python -m severewx.cli.tornado_concern_product_status \
+  --products-dir data/outputs/verification/run_bundle_2026-05-05_12z_to_2026-05-06_12z \
+  --recursive \
+  --output-md data/outputs/verification/run_bundle_2026-05-05_12z_to_2026-05-06_12z/status.md \
+  --fail-on-blocked \
+  --fail-on-fallback-render
+```
+
 ## Verification Case Review Graphics
 
 `verify_day` now also renders compact case-review boards under `data/outputs/verification/`.
