@@ -159,8 +159,13 @@ on:
 jobs:
   run:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     permissions:
       contents: read
+      pages: write
+      id-token: write
 
     steps:
       - name: Check out repository
@@ -331,3 +336,18 @@ jobs:
           name: manual-model-run-${{ github.run_number }}
           path: ${{ steps.command.outputs.artifact_dir }}
           if-no-files-found: warn
+
+      - name: Build Pages site
+        run: python -m severewx.cli.build_archive_site
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: data/archive
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

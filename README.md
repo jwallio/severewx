@@ -220,10 +220,12 @@ The generated site is self-contained for Pages hosting:
 
 - forecast maps are copied into the publish tree
 - verification case-review boards are copied into the publish tree
-- tornado-concern run bundles are indexed from `data/outputs/verification/**/manifest.json`
+- tornado-concern run bundles are indexed from `data/outputs/**/manifest.json`
 - run-bundle images, summaries, and metadata files are linked directly from the site
 
 To enable it in GitHub, allow Actions-based Pages deployment in the repository Pages settings, then run the `Deploy GitHub Pages` workflow or push the site-related changes to the default branch.
+
+Manual runs also deploy Pages after a successful selected task. This matters because `data/outputs` is generated runtime data, not tracked source. Running only `Deploy GitHub Pages` from a clean checkout can publish the shell of the site without run products; running `Manual Model Run` produces the artifacts and publishes the browser from that same runner.
 
 ## Staged Local GFS Workflow
 

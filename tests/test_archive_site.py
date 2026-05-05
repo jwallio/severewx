@@ -55,7 +55,7 @@ def test_archive_site_builds_pages_ready_run_index(tmp_path) -> None:
         encoding="utf-8",
     )
 
-    bundle_dir = paths.verification / "run_bundle_2026-05-05_12z_to_2026-05-06_12z"
+    bundle_dir = paths.outputs / "github_actions" / "run_bundle_2026-05-05_12z_to_2026-05-06_12z"
     direct_dir = bundle_dir / "direct_regional"
     direct_dir.mkdir(parents=True, exist_ok=True)
     direct_image = direct_dir / "direct.png"
@@ -97,4 +97,4 @@ def test_archive_site_builds_pages_ready_run_index(tmp_path) -> None:
     assert "Forecast Runs" in html_text
     assert (paths.archive / ".nojekyll").exists()
     assert (paths.archive / "assets" / "data" / "outputs" / "maps" / forecast_map.name).exists()
-    assert (paths.archive / "assets" / "data" / "outputs" / "verification" / bundle_dir.name / "direct_regional" / direct_image.name).exists()
+    assert (paths.archive / "assets" / "data" / "outputs" / "github_actions" / bundle_dir.name / "direct_regional" / direct_image.name).exists()

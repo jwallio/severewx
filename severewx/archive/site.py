@@ -188,7 +188,9 @@ def _read_json(path: Path) -> dict[str, Any] | None:
 
 def _run_bundle_cards(paths: DataPaths) -> list[dict[str, Any]]:
     cards: list[dict[str, Any]] = []
-    for manifest_path in sorted(paths.verification.rglob("manifest.json"), reverse=True):
+    for manifest_path in sorted(paths.outputs.rglob("manifest.json"), reverse=True):
+        if paths.archive in manifest_path.parents:
+            continue
         manifest = _read_json(manifest_path)
         if not manifest:
             continue
@@ -201,6 +203,7 @@ def _run_bundle_cards(paths: DataPaths) -> list[dict[str, Any]]:
         cards.append(
             {
                 "name": manifest_path.parent.name,
+                "manifest_path": manifest_path,
                 "manifest": manifest,
                 "products": products,
                 "status_md": status_md if status_md.exists() else None,
@@ -216,7 +219,7 @@ def _append_run_bundles(rows: list[str], paths: DataPaths) -> None:
     rows.append("<section><h2>Tornado-Concern Run Bundles</h2>")
     rows.append("<p class='section-copy'>Manual bundle runs with direct regional, direct CONUS, and consensus CONUS products plus readiness diagnostics.</p>")
     if not bundle_cards:
-        rows.append("<p>No run bundles found under data/outputs/verification.</p></section>")
+        rows.append("<p>No run bundles found under data/outputs.</p></section>")
         return
     for card in bundle_cards:
         manifest = card["manifest"]
@@ -237,7 +240,7 @@ def _append_run_bundles(rows: list[str], paths: DataPaths) -> None:
             asset = _copy_publish_asset(paths, path)
             if asset:
                 rows.append(f"<a href='{asset}'>{_escape(Path(path).name)}</a>")
-        manifest_asset = _copy_publish_asset(paths, manifest_path := paths.verification / card["name"] / "manifest.json")
+        manifest_asset = _copy_publish_asset(paths, card["manifest_path"])
         if manifest_asset:
             rows.append(f"<a href='{manifest_asset}'>manifest.json</a>")
         rows.append("</div>")
