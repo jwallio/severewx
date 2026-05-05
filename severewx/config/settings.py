@@ -47,10 +47,10 @@ def load_settings(config_path: str | Path | None = None) -> AppSettings:
     candidate_paths: list[Path] = []
     if config_path is not None:
         candidate_paths.append(Path(config_path))
+    candidate_paths.append(Path("config.yaml"))
     env_path = os.environ.get("SEVEREWX_CONFIG")
     if env_path:
         candidate_paths.append(Path(env_path))
-    candidate_paths.append(Path("config.yaml"))
 
     for candidate in candidate_paths:
         if candidate.exists():

@@ -151,6 +151,11 @@ on:
         required: false
         default: false
         type: boolean
+      auto_train_models:
+        description: "Train missing forecast models before model runs"
+        required: false
+        default: true
+        type: boolean
       extra_args:
         description: "Additional CLI arguments appended verbatim"
         required: false
@@ -187,10 +192,23 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .[dev,grib,ml]
 
+      - name: Write GitHub Actions config
+        shell: bash
+        run: |
+          cat > config.github-actions.yaml <<'YAML'
+          ingest:
+            source: nomads
+            failover_sources: []
+            allow_synthetic_fallback: true
+          render:
+            cartopy: false
+          YAML
+
       - name: Build command
         id: command
         shell: bash
         env:
+          SEVEREWX_CONFIG: config.github-actions.yaml
           TASK: ${{ inputs.task }}
           DATE: ${{ inputs.date }}
           CYCLE: ${{ inputs.cycle }}
@@ -215,6 +233,7 @@ jobs:
           SKIP_EVAL: ${{ inputs.skip_eval }}
           ALLOW_FALLBACK_PUBLICATION: ${{ inputs.allow_fallback_publication }}
           OVERWRITE: ${{ inputs.overwrite }}
+          AUTO_TRAIN_MODELS: ${{ inputs.auto_train_models }}
           EXTRA_ARGS: ${{ inputs.extra_args }}
         run: |
           python - <<'PY'
@@ -327,11 +346,33 @@ jobs:
                   fh.write(f"artifact_dir={output_dir}\n")
               fh.write(f"resolved_date={date}\n")
               fh.write(f"resolved_cycle={cycle}\n")
+              fh.write(f"needs_forecast_models={str(task in {'forecast', 'forecast_consensus'}).lower()}\n")
           print(command)
           PY
 
+      - name: Train missing forecast models
+        if: ${{ inputs.auto_train_models && steps.command.outputs.needs_forecast_models == 'true' }}
+        shell: bash
+        env:
+          SEVEREWX_CONFIG: config.github-actions.yaml
+        run: |
+          set -euo pipefail
+          missing=0
+          for hazard in tornado hail wind any outbreak; do
+            if [ ! -f "data/models/${hazard}_model.joblib" ]; then
+              missing=1
+            fi
+          done
+          if [ "$missing" -eq 1 ]; then
+            python -m severewx.cli.train_models --hazards tornado hail wind any outbreak --allow-degraded
+          else
+            echo "Forecast models already exist; skipping training."
+          fi
+
       - name: Run selected task
         shell: bash
+        env:
+          SEVEREWX_CONFIG: config.github-actions.yaml
         run: |
           set -euo pipefail
           echo "Running: ${{ steps.command.outputs.command }}"
@@ -359,6 +400,8 @@ jobs:
           if-no-files-found: warn
 
       - name: Build Pages site
+        env:
+          SEVEREWX_CONFIG: config.github-actions.yaml
         run: python -m severewx.cli.build_archive_site
 
       - name: Configure Pages
