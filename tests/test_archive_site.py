@@ -87,14 +87,41 @@ def test_archive_site_builds_pages_ready_run_index(tmp_path) -> None:
         ),
         encoding="utf-8",
     )
+    product_dir = paths.outputs / "github_actions" / "tornado_concern_product_2026-05-03_00z"
+    product_dir.mkdir(parents=True, exist_ok=True)
+    product_image = product_dir / "tornado_concern_init_2026-05-03_00z_valid_2026-05-05.png"
+    product_image.write_bytes(b"product-image")
+    product_summary = product_dir / "tornado_concern_init_2026-05-03_00z_valid_2026-05-05.md"
+    product_summary.write_text("# product", encoding="utf-8")
+    product_metadata = product_dir / "tornado_concern_init_2026-05-03_00z_valid_2026-05-05.json"
+    product_metadata.write_text(
+        json.dumps(
+            {
+                "title": "Tornado Environment Outlook",
+                "date": "2026-05-03",
+                "cycle": "00",
+                "valid_period_label": "2026-05-05 00-24 UTC",
+                "map_style": "outlook",
+                "map_domain": "regional",
+                "publication_status": "needs_render_review",
+                "main_image_path": str(product_image),
+                "summary_path": str(product_summary),
+                "metadata_path": str(product_metadata),
+            }
+        ),
+        encoding="utf-8",
+    )
 
     output = build_archive_site(paths)
     html_text = output.read_text(encoding="utf-8")
 
     assert "severewx Runs" in html_text
+    assert "Tornado-Concern Product Maps" in html_text
+    assert "Tornado Environment Outlook" in html_text
     assert "Tornado-Concern Run Bundles" in html_text
     assert "run_bundle_2026-05-05_12z_to_2026-05-06_12z" in html_text
     assert "Forecast Runs" in html_text
     assert (paths.archive / ".nojekyll").exists()
     assert (paths.archive / "assets" / "data" / "outputs" / "maps" / forecast_map.name).exists()
+    assert (paths.archive / "assets" / "data" / "outputs" / "github_actions" / product_dir.name / product_image.name).exists()
     assert (paths.archive / "assets" / "data" / "outputs" / "github_actions" / bundle_dir.name / "direct_regional" / direct_image.name).exists()

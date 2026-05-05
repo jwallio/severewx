@@ -214,6 +214,83 @@ def _run_bundle_cards(paths: DataPaths) -> list[dict[str, Any]]:
     return cards
 
 
+def _run_bundle_metadata_paths(paths: DataPaths) -> set[Path]:
+    metadata_paths: set[Path] = set()
+    for card in _run_bundle_cards(paths):
+        for payload in card["products"].values():
+            if not isinstance(payload, dict):
+                continue
+            metadata_path = payload.get("metadata_path")
+            if not metadata_path:
+                continue
+            try:
+                metadata_paths.add(Path(metadata_path).resolve())
+            except OSError:
+                continue
+    return metadata_paths
+
+
+def _tornado_concern_product_cards(paths: DataPaths) -> list[dict[str, Any]]:
+    bundled_metadata_paths = _run_bundle_metadata_paths(paths)
+    cards: list[dict[str, Any]] = []
+    for metadata_path in sorted(paths.outputs.rglob("tornado_concern_init_*.json"), reverse=True):
+        if paths.archive in metadata_path.parents:
+            continue
+        try:
+            if metadata_path.resolve() in bundled_metadata_paths:
+                continue
+        except OSError:
+            pass
+        metadata = _read_json(metadata_path)
+        if not metadata:
+            continue
+        image_path = metadata.get("main_image_path") or metadata.get("image_path")
+        if not image_path:
+            continue
+        cards.append(
+            {
+                "name": metadata_path.parent.name,
+                "metadata_path": metadata_path,
+                "metadata": metadata,
+                "image_path": Path(str(image_path)),
+                "summary_path": Path(str(metadata.get("summary_path", ""))) if metadata.get("summary_path") else None,
+            }
+        )
+    return cards
+
+
+def _append_tornado_concern_products(rows: list[str], paths: DataPaths) -> None:
+    product_cards = _tornado_concern_product_cards(paths)
+    rows.append("<section><h2>Tornado-Concern Product Maps</h2>")
+    rows.append("<p class='section-copy'>Single-product outlook maps built from the selected forecast artifact using the newer tornado-concern renderer.</p>")
+    if not product_cards:
+        rows.append("<p>No tornado-concern product maps found under data/outputs.</p></section>")
+        return
+    rows.append("<div class='product-grid'>")
+    for card in product_cards:
+        metadata = card["metadata"]
+        image_asset = _copy_publish_asset(paths, card["image_path"])
+        metadata_asset = _copy_publish_asset(paths, card["metadata_path"])
+        summary_asset = _copy_publish_asset(paths, card["summary_path"]) if card["summary_path"] else None
+        title = metadata.get("title") or card["name"]
+        rows.append("<section class='product-card'>")
+        rows.append(
+            f"<h3>{_escape(title)}</h3>"
+            f"<p class='product-status'>init <strong>{_escape(metadata.get('date', ''))} {_escape(metadata.get('cycle', ''))}Z</strong> | valid <strong>{_escape(metadata.get('valid_period_label', metadata.get('valid_date', '')))}</strong></p>"
+            f"<p class='product-status'>style <strong>{_escape(metadata.get('map_style', ''))}</strong> | domain <strong>{_escape(metadata.get('map_domain', ''))}</strong> | publication <strong>{_escape(metadata.get('publication_status', ''))}</strong></p>"
+        )
+        if image_asset:
+            rows.append(f"<a href='{image_asset}'><img src='{image_asset}' alt='{_escape(title)}'></a>")
+        rows.append("<div class='link-row'>")
+        if metadata_asset:
+            rows.append(f"<a href='{metadata_asset}'>metadata</a>")
+        if summary_asset:
+            rows.append(f"<a href='{summary_asset}'>summary</a>")
+        rows.append("</div>")
+        rows.append("</section>")
+    rows.append("</div></section>")
+
+
 def _append_run_bundles(rows: list[str], paths: DataPaths) -> None:
     bundle_cards = _run_bundle_cards(paths)
     rows.append("<section><h2>Tornado-Concern Run Bundles</h2>")
@@ -301,6 +378,7 @@ def build_archive_site(paths: DataPaths) -> Path:
         "</style></head><body><main>",
         "<header><h1>severewx Runs</h1><p class='section-copy'>Static run browser for forecast outputs, tornado-concern bundles, diagnostics, and review graphics published from the repository data tree.</p></header>",
     ]
+    _append_tornado_concern_products(rows, paths)
     _append_run_bundles(rows, paths)
     _append_forecast_runs(rows, paths)
     rows.append("</main></body></html>")

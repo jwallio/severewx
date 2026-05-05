@@ -341,6 +341,7 @@ jobs:
               fh.write(f"resolved_date={date}\n")
               fh.write(f"resolved_cycle={cycle}\n")
               fh.write(f"needs_forecast_models={str(task in {'forecast', 'forecast_consensus'}).lower()}\n")
+              fh.write(f"build_tornado_preview={str(task == 'forecast' and str(os.environ['SKIP_RENDER']).lower() != 'true').lower()}\n")
           print(command)
           PY
 
@@ -371,6 +372,24 @@ jobs:
           set -euo pipefail
           echo "Running: ${{ steps.command.outputs.command }}"
           ${{ steps.command.outputs.command }}
+
+      - name: Build tornado-concern preview map
+        if: ${{ steps.command.outputs.build_tornado_preview == 'true' }}
+        shell: bash
+        env:
+          SEVEREWX_CONFIG: config.github-actions.yaml
+        run: |
+          set -euo pipefail
+          python -m severewx.cli.build_tornado_concern_product \
+            --date "${{ steps.command.outputs.resolved_date }}" \
+            --cycle "${{ steps.command.outputs.resolved_cycle }}" \
+            --outdir "data/outputs/github_actions/tornado_concern_product_${{ steps.command.outputs.resolved_date }}_${{ steps.command.outputs.resolved_cycle }}z" \
+            --field tornado_environment_outlook_hybrid \
+            --map-style outlook \
+            --map-domain regional \
+            --artifact-source prediction \
+            --display-preset auto \
+            --overwrite
 
       - name: Write run summary
         if: always()
