@@ -373,23 +373,30 @@ jobs:
           echo "Running: ${{ steps.command.outputs.command }}"
           ${{ steps.command.outputs.command }}
 
-      - name: Build tornado-concern preview map
+      - name: Build tornado-concern preview maps
         if: ${{ steps.command.outputs.build_tornado_preview == 'true' }}
         shell: bash
         env:
           SEVEREWX_CONFIG: config.github-actions.yaml
         run: |
           set -euo pipefail
-          python -m severewx.cli.build_tornado_concern_product \
-            --date "${{ steps.command.outputs.resolved_date }}" \
-            --cycle "${{ steps.command.outputs.resolved_cycle }}" \
-            --outdir "data/outputs/github_actions/tornado_concern_product_${{ steps.command.outputs.resolved_date }}_${{ steps.command.outputs.resolved_cycle }}z" \
-            --field tornado_environment_outlook_hybrid \
-            --map-style outlook \
-            --map-domain regional \
-            --artifact-source prediction \
-            --display-preset auto \
-            --overwrite
+          init_date="${{ steps.command.outputs.resolved_date }}"
+          cycle="${{ steps.command.outputs.resolved_cycle }}"
+          outdir="data/outputs/github_actions/tornado_concern_product_${init_date}_${cycle}z"
+          for offset in 0 1 2; do
+            valid_date="$(date -u -d "${init_date} + ${offset} day" +%F)"
+            python -m severewx.cli.build_tornado_concern_product \
+              --date "${init_date}" \
+              --cycle "${cycle}" \
+              --valid-date "${valid_date}" \
+              --outdir "${outdir}" \
+              --field tornado_environment_outlook_hybrid \
+              --map-style outlook \
+              --map-domain regional \
+              --artifact-source prediction \
+              --display-preset auto \
+              --overwrite
+          done
 
       - name: Write run summary
         if: always()

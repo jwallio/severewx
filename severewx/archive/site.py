@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import json
 import shutil
+from datetime import date as Date
 from pathlib import Path
 from typing import Any
 
@@ -259,36 +260,203 @@ def _tornado_concern_product_cards(paths: DataPaths) -> list[dict[str, Any]]:
     return cards
 
 
-def _append_tornado_concern_products(rows: list[str], paths: DataPaths) -> None:
-    product_cards = _tornado_concern_product_cards(paths)
-    rows.append("<section><h2>Tornado-Concern Product Maps</h2>")
-    rows.append("<p class='section-copy'>Single-product outlook maps built from the selected forecast artifact using the newer tornado-concern renderer.</p>")
-    if not product_cards:
-        rows.append("<p>No tornado-concern product maps found under data/outputs.</p></section>")
-        return
-    rows.append("<div class='product-grid'>")
-    for card in product_cards:
+def _cycle_sort_key(cycle: object) -> int:
+    try:
+        return int(str(cycle))
+    except ValueError:
+        return -1
+
+
+def _product_day(metadata: dict[str, Any]) -> int | None:
+    init_date = metadata.get("date")
+    valid_date = metadata.get("valid_date")
+    if not init_date or not valid_date:
+        return None
+    try:
+        return (Date.fromisoformat(str(valid_date)) - Date.fromisoformat(str(init_date))).days + 1
+    except ValueError:
+        return None
+
+
+def _latest_product_run(cards: list[dict[str, Any]]) -> dict[str, Any] | None:
+    grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for card in cards:
         metadata = card["metadata"]
+        run_key = (str(metadata.get("date", "")), str(metadata.get("cycle", "")))
+        if not all(run_key):
+            continue
+        day = _product_day(metadata)
+        if day not in {1, 2, 3}:
+            continue
+        grouped.setdefault(run_key, []).append(card)
+    if not grouped:
+        return None
+    latest_key = max(grouped, key=lambda key: (key[0], _cycle_sort_key(key[1])))
+    products_by_day: dict[int, dict[str, Any]] = {}
+    for card in grouped[latest_key]:
+        day = _product_day(card["metadata"])
+        if day is None:
+            continue
+        existing = products_by_day.get(day)
+        if existing is None or str(card["metadata"].get("generation_timestamp", "")) > str(existing["metadata"].get("generation_timestamp", "")):
+            products_by_day[day] = card
+    products = [products_by_day[day] for day in sorted(products_by_day) if day in {1, 2, 3}]
+    if not products:
+        return None
+    generated_at = max(str(card["metadata"].get("generation_timestamp", "")) for card in products)
+    return {"date": latest_key[0], "cycle": latest_key[1], "generated_at": generated_at, "products": products}
+
+
+def _forecast_metadata_for_run(paths: DataPaths, init_date: str, cycle: str) -> dict[str, Any] | None:
+    exact = paths.outputs / f"forecast_metadata_{init_date}_{cycle}.json"
+    if exact.exists():
+        return _read_json(exact)
+    candidates = []
+    for metadata_file in sorted(paths.outputs.glob(f"forecast_metadata_{init_date}_*.json")):
+        payload = _read_json(metadata_file)
+        if payload:
+            candidates.append(payload)
+    return candidates[-1] if candidates else None
+
+
+def _run_payload(paths: DataPaths, run: dict[str, Any]) -> dict[str, Any]:
+    products: list[dict[str, Any]] = []
+    for card in run["products"]:
+        metadata = card["metadata"]
+        day = _product_day(metadata)
+        if day is None:
+            continue
         image_asset = _copy_publish_asset(paths, card["image_path"])
         metadata_asset = _copy_publish_asset(paths, card["metadata_path"])
         summary_asset = _copy_publish_asset(paths, card["summary_path"]) if card["summary_path"] else None
-        title = metadata.get("title") or card["name"]
-        rows.append("<section class='product-card'>")
-        rows.append(
-            f"<h3>{_escape(title)}</h3>"
-            f"<p class='product-status'>init <strong>{_escape(metadata.get('date', ''))} {_escape(metadata.get('cycle', ''))}Z</strong> | valid <strong>{_escape(metadata.get('valid_period_label', metadata.get('valid_date', '')))}</strong></p>"
-            f"<p class='product-status'>style <strong>{_escape(metadata.get('map_style', ''))}</strong> | domain <strong>{_escape(metadata.get('map_domain', ''))}</strong> | publication <strong>{_escape(metadata.get('publication_status', ''))}</strong></p>"
+        if not image_asset:
+            continue
+        products.append(
+            {
+                "day": day,
+                "label": f"Day {day} Risk",
+                "validDate": metadata.get("valid_date", ""),
+                "validLabel": metadata.get("valid_period_label", metadata.get("valid_date", "")),
+                "imageAsset": image_asset,
+                "metadataAsset": metadata_asset or "",
+                "summaryAsset": summary_asset or "",
+                "publicationStatus": metadata.get("publication_status", ""),
+                "publicReady": bool(metadata.get("public_ready", False)),
+                "title": metadata.get("title", f"Day {day} Risk"),
+            }
         )
-        if image_asset:
-            rows.append(f"<a href='{image_asset}'><img src='{image_asset}' alt='{_escape(title)}'></a>")
-        rows.append("<div class='link-row'>")
-        if metadata_asset:
-            rows.append(f"<a href='{metadata_asset}'>metadata</a>")
-        if summary_asset:
-            rows.append(f"<a href='{summary_asset}'>summary</a>")
-        rows.append("</div>")
-        rows.append("</section>")
-    rows.append("</div></section>")
+    return {
+        "initDate": run["date"],
+        "cycle": run["cycle"],
+        "generatedAt": run["generated_at"],
+        "products": sorted(products, key=lambda product: product["day"]),
+    }
+
+
+def _json_script(payload: dict[str, Any]) -> str:
+    return json.dumps(payload, sort_keys=True).replace("</", "<\\/")
+
+
+def _append_latest_run_viewer(rows: list[str], paths: DataPaths) -> None:
+    run = _latest_product_run(_tornado_concern_product_cards(paths))
+    rows.append("<section class='viewer-section'>")
+    if run is None:
+        rows.append("<div class='empty-state'><h2>No forecast products found</h2><p>Run the Manual Model Run workflow with task forecast to publish Day 1-3 risk maps.</p></div></section>")
+        rows.append("<script>window.SEVEREWX_RUN={\"products\":[]};</script>")
+        return
+    payload = _run_payload(paths, run)
+    products = payload["products"]
+    if not products:
+        rows.append("<div class='empty-state'><h2>No publishable forecast products found</h2><p>Product metadata exists, but no map images were available to copy into Pages.</p></div></section>")
+        rows.append(f"<script>window.SEVEREWX_RUN={_json_script(payload)};</script>")
+        return
+    first = products[0]
+    status_values = sorted({str(product["publicationStatus"]) for product in products if product["publicationStatus"]})
+    status_text = ", ".join(status_values) if status_values else "unknown"
+    ready_count = sum(1 for product in products if product["publicReady"])
+    rows.append(
+        "<div class='viewer-card'>"
+        "<div class='viewer-header'>"
+        "<div>"
+        "<p class='eyebrow'>Latest Forecast Run</p>"
+        f"<h2>{_escape(payload['initDate'])} { _escape(payload['cycle'])}Z Risk Outlook</h2>"
+        f"<p class='run-meta'>generated {_escape(payload['generatedAt'] or 'unknown')} | publication {_escape(status_text)} | public-ready {ready_count}/{len(products)}</p>"
+        "</div>"
+        "<label class='day-picker'>"
+        "<span>Risk day</span>"
+        "<select id='risk-day-select' aria-label='Risk day'>"
+    )
+    for product in products:
+        rows.append(f"<option value='{_escape(product['day'])}'>{_escape(product['label'])}</option>")
+    rows.append(
+        "</select>"
+        "</label>"
+        "</div>"
+        "<figure class='map-viewer'>"
+        f"<a id='risk-image-link' href='{_escape(first['imageAsset'])}'><img id='risk-image' src='{_escape(first['imageAsset'])}' alt='{_escape(first['label'])}'></a>"
+        f"<figcaption id='risk-caption'>{_escape(first['label'])} | valid {_escape(first['validLabel'])}</figcaption>"
+        "</figure>"
+        "<div class='link-row viewer-links'>"
+        f"<a id='risk-metadata-link' href='{_escape(first['metadataAsset'])}'>metadata</a>"
+        f"<a id='risk-summary-link' href='{_escape(first['summaryAsset'])}'>summary</a>"
+        "</div>"
+        "</div></section>"
+        f"<script>window.SEVEREWX_RUN={_json_script(payload)};</script>"
+        "<script>"
+        "(function(){"
+        "const run=window.SEVEREWX_RUN||{};"
+        "const products=run.products||[];"
+        "const select=document.getElementById('risk-day-select');"
+        "const image=document.getElementById('risk-image');"
+        "const imageLink=document.getElementById('risk-image-link');"
+        "const caption=document.getElementById('risk-caption');"
+        "const metadataLink=document.getElementById('risk-metadata-link');"
+        "const summaryLink=document.getElementById('risk-summary-link');"
+        "function show(day){"
+        "const product=products.find((item)=>String(item.day)===String(day))||products[0];"
+        "if(!product){return;}"
+        "image.src=product.imageAsset;image.alt=product.label;"
+        "imageLink.href=product.imageAsset;"
+        "caption.textContent=product.label+' | valid '+(product.validLabel||product.validDate||'unknown');"
+        "metadataLink.href=product.metadataAsset||'#';metadataLink.hidden=!product.metadataAsset;"
+        "summaryLink.href=product.summaryAsset||'#';summaryLink.hidden=!product.summaryAsset;"
+        "}"
+        "if(select){select.addEventListener('change',()=>show(select.value));show(select.value);}"
+        "}());"
+        "</script>"
+    )
+    metadata = _forecast_metadata_for_run(paths, str(payload["initDate"]), str(payload["cycle"]))
+    if metadata:
+        rows.append("<section class='diagnostics-section'><details><summary>Forecast diagnostics</summary>")
+        ingest = metadata.get("ingest_summary", {})
+        rows.append(
+            _table_from_mapping(
+                {
+                    "source": ingest.get("source"),
+                    "source_mode": ingest.get("source_mode"),
+                    "fields": ", ".join(ingest.get("available_fields", [])),
+                    "missing_requested_leads": ingest.get("missing_requested_leads", []),
+                    "fallbacks_used": ingest.get("fallbacks_used", {}),
+                    "provider_failures": ingest.get("provider_failures", []),
+                }
+            )
+        )
+        lead_rows = metadata.get("lead_day_summary", [])
+        if lead_rows:
+            rows.append("<table><tr><th>valid_date</th><th>lead_day</th><th>outbreak</th><th>confidence</th><th>signal_quality</th><th>bust_risk</th></tr>")
+            for lead_row in lead_rows[:3]:
+                rows.append(
+                    "<tr>"
+                    f"<td>{_escape(lead_row.get('date'))}</td>"
+                    f"<td>{_escape(lead_row.get('lead_day'))}</td>"
+                    f"<td>{_escape(lead_row.get('max_outbreak_risk'))}</td>"
+                    f"<td>{_escape(lead_row.get('mean_confidence'))}</td>"
+                    f"<td>{_escape(lead_row.get('mean_signal_quality'))}</td>"
+                    f"<td>{_escape(lead_row.get('mean_bust_risk'))}</td>"
+                    "</tr>"
+                )
+            rows.append("</table>")
+        rows.append("</details></section>")
 
 
 def _append_run_bundles(rows: list[str], paths: DataPaths) -> None:
@@ -354,13 +522,24 @@ def build_archive_site(paths: DataPaths) -> Path:
 
     rows: list[str] = [
         "<html><head><title>severewx runs</title><style>"
-        "body{font-family:Segoe UI,Arial,sans-serif;margin:0;background:#f3f6f8;color:#18212b;line-height:1.45;}"
-        "main{max-width:1280px;margin:0 auto;padding:24px;}"
-        "header{padding:24px 0 8px 0;border-bottom:1px solid #d8e0e6;margin-bottom:24px;}"
+        "body{font-family:Segoe UI,Arial,sans-serif;margin:0;background:#eef2f5;color:#18212b;line-height:1.45;}"
+        "main{max-width:1180px;margin:0 auto;padding:22px;}"
+        "header{padding:20px 0 10px 0;border-bottom:1px solid #cfd8df;margin-bottom:22px;}"
         "h1,h2,h3,h4{margin:0 0 10px 0;}"
         "p{margin:0 0 12px 0;}"
         "section{margin-bottom:32px;}"
         ".section-copy{color:#4a5b6d;max-width:900px;}"
+        ".viewer-card{background:#fff;border:1px solid #cfd8df;border-radius:8px;padding:18px;box-shadow:0 1px 2px rgba(24,33,43,.04);}"
+        ".viewer-header{display:flex;gap:16px;align-items:end;justify-content:space-between;margin-bottom:16px;}"
+        ".eyebrow{font-size:12px;font-weight:700;letter-spacing:0;text-transform:uppercase;color:#516172;margin-bottom:4px;}"
+        ".day-picker{display:grid;gap:5px;min-width:170px;font-size:13px;font-weight:650;color:#354658;}"
+        ".day-picker select{font:inherit;padding:9px 10px;border:1px solid #b8c4cf;border-radius:6px;background:#fff;color:#18212b;}"
+        ".map-viewer{margin:0;}"
+        ".map-viewer img{width:100%;border:1px solid #cfd8df;border-radius:6px;background:#fff;}"
+        ".viewer-links{margin-top:12px;}"
+        ".diagnostics-section details{background:#fff;border:1px solid #cfd8df;border-radius:8px;padding:14px;}"
+        ".diagnostics-section summary{cursor:pointer;font-weight:700;color:#253446;}"
+        ".empty-state{background:#fff;border:1px solid #cfd8df;border-radius:8px;padding:18px;}"
         ".run-card{background:#fff;border:1px solid #d8e0e6;border-radius:8px;padding:18px;margin:0 0 20px 0;}"
         ".run-header{display:flex;flex-wrap:wrap;gap:12px;align-items:baseline;justify-content:space-between;margin-bottom:12px;}"
         ".run-meta{color:#4a5b6d;font-size:14px;}"
@@ -375,12 +554,11 @@ def build_archive_site(paths: DataPaths) -> Path:
         "td,th{border:1px solid #d8e0e6;padding:6px 8px;vertical-align:top;text-align:left;}"
         "img{display:block;width:100%;height:auto;border:1px solid #d8e0e6;border-radius:6px;background:#fff;}"
         "figure{margin:0;}figcaption{font-size:13px;color:#4a5b6d;margin-top:6px;word-break:break-word;}"
+        "@media (max-width:700px){main{padding:14px;}.viewer-header{display:grid;align-items:start;}.day-picker{min-width:0;}}"
         "</style></head><body><main>",
-        "<header><h1>severewx Runs</h1><p class='section-copy'>Static run browser for forecast outputs, tornado-concern bundles, diagnostics, and review graphics published from the repository data tree.</p></header>",
+        "<header><h1>severewx Runs</h1><p class='section-copy'>Latest Day 1-3 severe-weather risk outlooks published from the manual forecast workflow.</p></header>",
     ]
-    _append_tornado_concern_products(rows, paths)
-    _append_run_bundles(rows, paths)
-    _append_forecast_runs(rows, paths)
+    _append_latest_run_viewer(rows, paths)
     rows.append("</main></body></html>")
     output = paths.archive / "index.html"
     output.write_text("".join(rows), encoding="utf-8")

@@ -1,48 +1,68 @@
 import json
+from datetime import date, timedelta
 
 from severewx.archive.site import build_archive_site
 from severewx.config import load_settings
 from severewx.utils.paths import build_paths
 
 
-def test_archive_site_builds_pages_ready_run_index(tmp_path) -> None:
-    settings = load_settings()
-    settings.raw["paths"]["root"] = str(tmp_path)
-    paths = build_paths(settings)
-
-    forecast_map = paths.maps / "2026-05-03_day1.png"
-    forecast_map.write_bytes(b"forecast-map")
-    review_graphic = paths.verification / "2026-05-03_00_day1_2026-05-03_case_review.png"
-    review_graphic.write_bytes(b"review-graphic")
-    (paths.verification / "2026-05-03_verification.json").write_text(
+def _write_product(paths, init_date: str, cycle: str, day: int) -> tuple[object, object]:
+    valid_date = date.fromisoformat(init_date) + timedelta(days=day - 1)
+    product_dir = paths.outputs / "github_actions" / f"tornado_concern_product_{init_date}_{cycle}z"
+    product_dir.mkdir(parents=True, exist_ok=True)
+    stem = f"tornado_concern_init_{init_date}_{cycle}z_valid_{valid_date.isoformat()}"
+    product_image = product_dir / f"{stem}.png"
+    product_image.write_bytes(f"product-image-{init_date}-{day}".encode("ascii"))
+    product_summary = product_dir / f"{stem}.md"
+    product_summary.write_text(f"# Day {day}", encoding="utf-8")
+    product_metadata = product_dir / f"{stem}.json"
+    product_metadata.write_text(
         json.dumps(
             {
-                "run_summary": {
-                    "init_date": "2026-05-03",
-                    "n_valid_days": 4,
-                    "training_data_source": "archive",
-                    "evaluation_source": "reports",
-                    "any_outbreak_hit_rate": 0.5,
-                    "any_false_outbreak_alarms": 1,
-                    "tornado_outbreak_hit_rate": 0.25,
-                    "tornado_false_outbreak_alarms": 2,
-                    "significant_tornado_outbreak_hit_rate": 0.0,
-                    "significant_tornado_false_outbreak_alarms": 0,
-                },
-                "training_data_summary": {"source_preference": "archive", "guardrails_passed": True},
-                "review_graphics": [str(review_graphic)],
+                "title": f"Risk Outlook {init_date}",
+                "date": init_date,
+                "cycle": cycle,
+                "valid_date": valid_date.isoformat(),
+                "valid_period_label": f"{valid_date.isoformat()} 00-24 UTC",
+                "map_style": "outlook",
+                "map_domain": "regional",
+                "publication_status": "needs_render_review",
+                "public_ready": day != 2,
+                "generation_timestamp": f"{init_date}T0{day}:00:00Z",
+                "main_image_path": str(product_image),
+                "summary_path": str(product_summary),
+                "metadata_path": str(product_metadata),
             }
         ),
         encoding="utf-8",
     )
-    (paths.outputs / "forecast_metadata_2026-05-03_00.json").write_text(
+    return product_dir, product_image
+
+
+def test_archive_site_builds_latest_run_day_dropdown_without_old_maps(tmp_path) -> None:
+    settings = load_settings()
+    settings.raw["paths"]["root"] = str(tmp_path)
+    paths = build_paths(settings)
+
+    paths.maps.mkdir(parents=True, exist_ok=True)
+    old_forecast_map = paths.maps / "2026-05-03_00_day1_2026-05-03_any_severe.png"
+    old_forecast_map.write_bytes(b"old-map")
+
+    for day in (1, 2, 3):
+        _write_product(paths, "2026-05-03", "00", day)
+    latest_dir = None
+    latest_image = None
+    for day in (1, 2, 3):
+        latest_dir, latest_image = _write_product(paths, "2026-05-05", "12", day)
+
+    (paths.outputs / "forecast_metadata_2026-05-05_12.json").write_text(
         json.dumps(
             {
-                "init_date": "2026-05-03",
+                "init_date": "2026-05-05",
                 "ingest_summary": {"source": "nomads", "source_mode": "real", "available_fields": ["cape"]},
                 "lead_day_summary": [
                     {
-                        "date": "2026-05-03",
+                        "date": "2026-05-05",
                         "lead_day": 1,
                         "max_outbreak_risk": 0.4,
                         "mean_confidence": 0.7,
@@ -55,73 +75,22 @@ def test_archive_site_builds_pages_ready_run_index(tmp_path) -> None:
         encoding="utf-8",
     )
 
-    bundle_dir = paths.outputs / "github_actions" / "run_bundle_2026-05-05_12z_to_2026-05-06_12z"
-    direct_dir = bundle_dir / "direct_regional"
-    direct_dir.mkdir(parents=True, exist_ok=True)
-    direct_image = direct_dir / "direct.png"
-    direct_image.write_bytes(b"direct-image")
-    direct_metadata = direct_dir / "direct.json"
-    direct_metadata.write_text(json.dumps({"publication_status": "public_candidate"}), encoding="utf-8")
-    direct_summary = direct_dir / "direct.md"
-    direct_summary.write_text("# direct", encoding="utf-8")
-    (bundle_dir / "status.md").write_text("# status", encoding="utf-8")
-    (bundle_dir / "run_summary.md").write_text("# run summary", encoding="utf-8")
-    (bundle_dir / "environment.json").write_text(json.dumps({"cartopy_available": True}), encoding="utf-8")
-    (bundle_dir / "manifest.json").write_text(
-        json.dumps(
-            {
-                "date": "2026-05-03",
-                "cycle": "00",
-                "valid_start": "2026-05-05T12:00Z",
-                "valid_end": "2026-05-06T12:00Z",
-                "products": {
-                    "direct_regional": {
-                        "publication_status": "public_candidate",
-                        "public_ready": True,
-                        "image_path": str(direct_image),
-                        "metadata_path": str(direct_metadata),
-                        "summary_path": str(direct_summary),
-                    }
-                },
-            }
-        ),
-        encoding="utf-8",
-    )
-    product_dir = paths.outputs / "github_actions" / "tornado_concern_product_2026-05-03_00z"
-    product_dir.mkdir(parents=True, exist_ok=True)
-    product_image = product_dir / "tornado_concern_init_2026-05-03_00z_valid_2026-05-05.png"
-    product_image.write_bytes(b"product-image")
-    product_summary = product_dir / "tornado_concern_init_2026-05-03_00z_valid_2026-05-05.md"
-    product_summary.write_text("# product", encoding="utf-8")
-    product_metadata = product_dir / "tornado_concern_init_2026-05-03_00z_valid_2026-05-05.json"
-    product_metadata.write_text(
-        json.dumps(
-            {
-                "title": "Tornado Environment Outlook",
-                "date": "2026-05-03",
-                "cycle": "00",
-                "valid_period_label": "2026-05-05 00-24 UTC",
-                "map_style": "outlook",
-                "map_domain": "regional",
-                "publication_status": "needs_render_review",
-                "main_image_path": str(product_image),
-                "summary_path": str(product_summary),
-                "metadata_path": str(product_metadata),
-            }
-        ),
-        encoding="utf-8",
-    )
-
     output = build_archive_site(paths)
     html_text = output.read_text(encoding="utf-8")
 
     assert "severewx Runs" in html_text
-    assert "Tornado-Concern Product Maps" in html_text
-    assert "Tornado Environment Outlook" in html_text
-    assert "Tornado-Concern Run Bundles" in html_text
-    assert "run_bundle_2026-05-05_12z_to_2026-05-06_12z" in html_text
-    assert "Forecast Runs" in html_text
+    assert "Latest Forecast Run" in html_text
+    assert "2026-05-05 12Z Risk Outlook" in html_text
+    assert "Day 1 Risk" in html_text
+    assert "Day 2 Risk" in html_text
+    assert "Day 3 Risk" in html_text
+    assert "window.SEVEREWX_RUN" in html_text
+    assert "Forecast diagnostics" in html_text
+    assert "2026-05-03 00Z Risk Outlook" not in html_text
+    assert "Forecast Runs" not in html_text
+    assert old_forecast_map.name not in html_text
+    assert latest_dir is not None
+    assert latest_image is not None
     assert (paths.archive / ".nojekyll").exists()
-    assert (paths.archive / "assets" / "data" / "outputs" / "maps" / forecast_map.name).exists()
-    assert (paths.archive / "assets" / "data" / "outputs" / "github_actions" / product_dir.name / product_image.name).exists()
-    assert (paths.archive / "assets" / "data" / "outputs" / "github_actions" / bundle_dir.name / "direct_regional" / direct_image.name).exists()
+    assert (paths.archive / "assets" / "data" / "outputs" / "github_actions" / latest_dir.name / latest_image.name).exists()
+    assert not (paths.archive / "assets" / "data" / "outputs" / "maps" / old_forecast_map.name).exists()
