@@ -347,11 +347,12 @@ jobs:
               fh.write(f"resolved_date={date}\n")
               fh.write(f"resolved_cycle={cycle}\n")
               fh.write(f"needs_forecast_models={str(task in {'forecast', 'forecast_consensus'}).lower()}\n")
+              fh.write(f"auto_train_models={str(os.environ.get('AUTO_TRAIN_MODELS', 'false')).lower()}\n")
           print(command)
           PY
 
       - name: Train missing forecast models
-        if: ${{ inputs.auto_train_models && steps.command.outputs.needs_forecast_models == 'true' }}
+        if: ${{ steps.command.outputs.auto_train_models == 'true' && steps.command.outputs.needs_forecast_models == 'true' }}
         shell: bash
         env:
           SEVEREWX_CONFIG: config.github-actions.yaml
