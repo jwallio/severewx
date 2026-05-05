@@ -195,7 +195,7 @@ Open the `Actions` tab, choose `Manual Model Run`, then click `Run workflow`. Th
 
 Common inputs are passed through the workflow menu:
 
-- `date` and `cycle` for forecast/product runs
+- `date` and `cycle` for forecast/product runs; leave both as `auto` for the default run
 - `start_date` and `end_date` for checkpoint runs
 - `valid_start` and `valid_end` for custom tornado-concern windows
 - `sources` for consensus source selection
@@ -203,6 +203,16 @@ Common inputs are passed through the workflow menu:
 - `extra_args` for any additional CLI flags not represented directly in the menu
 
 Each run uploads the selected output directory as a GitHub Actions artifact and writes the exact command to the job summary.
+
+For the default run, leave the menu as:
+
+- `task`: `forecast`
+- `date`: `auto`
+- `cycle`: `auto`
+- `skip_render`: unchecked
+- `output_dir`: unchanged
+
+The workflow resolves `auto` to the most recent likely available 6-hour forecast cycle, runs the model, renders maps, uploads `data/outputs`, and deploys the Pages run browser.
 
 ## GitHub Pages Run Browser
 

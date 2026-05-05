@@ -16,16 +16,17 @@ on:
           - tornado_concern_checkpoint
           - verify_day
       date:
-        description: "Forecast or verification date (YYYY-MM-DD)"
+        description: "Forecast or verification date (YYYY-MM-DD, or auto)"
         required: false
-        default: ""
+        default: "auto"
         type: string
       cycle:
-        description: "Forecast cycle (00, 06, 12, 18)"
+        description: "Forecast cycle (auto, 00, 06, 12, 18)"
         required: false
-        default: "00"
+        default: "auto"
         type: choice
         options:
+          - auto
           - "00"
           - "06"
           - "12"
@@ -220,6 +221,7 @@ jobs:
           import os
           import shlex
           import sys
+          from datetime import UTC, datetime, timedelta
 
           def add_arg(args, flag, value):
               if value:
@@ -229,8 +231,20 @@ jobs:
               if str(enabled).lower() == "true":
                   args.append(flag)
 
+          def resolved_date_cycle() -> tuple[str, str]:
+              date = os.environ["DATE"].strip()
+              cycle = os.environ["CYCLE"].strip()
+              reference = datetime.now(UTC) - timedelta(hours=6)
+              resolved_cycle = f"{(reference.hour // 6) * 6:02d}"
+              if not date or date.lower() == "auto":
+                  date = reference.strftime("%Y-%m-%d")
+              if not cycle or cycle.lower() == "auto":
+                  cycle = resolved_cycle
+              return date, cycle
+
           task = os.environ["TASK"]
           output_dir = os.environ["OUTPUT_DIR"] or "data/outputs/github_actions/manual_run"
+          date, cycle = resolved_date_cycle()
           commands = {
               "forecast": ["python", "-m", "severewx.cli.run_forecast"],
               "forecast_consensus": ["python", "-m", "severewx.cli.run_forecast_consensus"],
@@ -244,14 +258,14 @@ jobs:
 
           args = list(commands[task])
           if task in {"forecast", "forecast_consensus"}:
-              add_arg(args, "--date", os.environ["DATE"])
-              add_arg(args, "--cycle", os.environ["CYCLE"])
+              add_arg(args, "--date", date)
+              add_arg(args, "--cycle", cycle)
               add_bool(args, "--skip-render", os.environ["SKIP_RENDER"])
               if task == "forecast_consensus":
                   add_arg(args, "--sources", os.environ["SOURCES"])
           elif task == "tornado_concern_product":
-              add_arg(args, "--date", os.environ["DATE"])
-              add_arg(args, "--cycle", os.environ["CYCLE"])
+              add_arg(args, "--date", date)
+              add_arg(args, "--cycle", cycle)
               add_arg(args, "--outdir", output_dir)
               add_arg(args, "--field", os.environ["FIELD_NAME"])
               add_arg(args, "--map-style", os.environ["MAP_STYLE"])
@@ -263,8 +277,8 @@ jobs:
               add_bool(args, "--require-production-basemap", str(not str(os.environ["ALLOW_FALLBACK_PUBLICATION"]).lower() == "true"))
               add_bool(args, "--overwrite", os.environ["OVERWRITE"])
           elif task == "tornado_concern_run_bundle":
-              add_arg(args, "--date", os.environ["DATE"])
-              add_arg(args, "--cycle", os.environ["CYCLE"])
+              add_arg(args, "--date", date)
+              add_arg(args, "--cycle", cycle)
               add_arg(args, "--valid-start", os.environ["VALID_START"])
               add_arg(args, "--valid-end", os.environ["VALID_END"])
               add_arg(args, "--outdir", output_dir)
@@ -274,8 +288,9 @@ jobs:
               add_arg(args, "--start", os.environ["START_DATE"])
               add_arg(args, "--end", os.environ["END_DATE"])
               add_arg(args, "--output-dir", output_dir)
-              add_arg(args, "--product-date", os.environ["DATE"])
-              add_arg(args, "--product-cycle", os.environ["CYCLE"])
+              if os.environ["DATE"].strip() and os.environ["DATE"].strip().lower() != "auto":
+                  add_arg(args, "--product-date", date)
+              add_arg(args, "--product-cycle", cycle)
               add_arg(args, "--score-variant", os.environ["SCORE_VARIANT"])
               add_arg(args, "--tornado-preference-mode", os.environ["TORNADO_PREFERENCE_MODE"])
               add_bool(args, "--skip-product", os.environ["SKIP_PRODUCT"])
@@ -285,19 +300,19 @@ jobs:
               add_bool(args, "--skip-eval", os.environ["SKIP_EVAL"])
               add_bool(args, "--overwrite", os.environ["OVERWRITE"])
           elif task == "verify_day":
-              add_arg(args, "--date", os.environ["DATE"])
+              add_arg(args, "--date", date)
 
           extra_args = os.environ.get("EXTRA_ARGS", "").strip()
           if extra_args:
               args.extend(shlex.split(extra_args))
 
           required = {
-              "forecast": ["DATE", "CYCLE"],
-              "forecast_consensus": ["DATE", "CYCLE"],
-              "tornado_concern_product": ["DATE", "CYCLE", "OUTPUT_DIR"],
-              "tornado_concern_run_bundle": ["DATE", "CYCLE", "VALID_START", "VALID_END", "OUTPUT_DIR"],
+              "forecast": [],
+              "forecast_consensus": [],
+              "tornado_concern_product": ["OUTPUT_DIR"],
+              "tornado_concern_run_bundle": ["VALID_START", "VALID_END", "OUTPUT_DIR"],
               "tornado_concern_checkpoint": ["START_DATE", "END_DATE", "OUTPUT_DIR"],
-              "verify_day": ["DATE"],
+              "verify_day": [],
           }
           missing = [name.lower() for name in required[task] if not os.environ.get(name, "").strip()]
           if missing:
@@ -306,7 +321,12 @@ jobs:
           command = shlex.join(args)
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
               fh.write(f"command={command}\n")
-              fh.write(f"artifact_dir={output_dir}\n")
+              if task in {"forecast", "forecast_consensus", "verify_day"}:
+                  fh.write("artifact_dir=data/outputs\n")
+              else:
+                  fh.write(f"artifact_dir={output_dir}\n")
+              fh.write(f"resolved_date={date}\n")
+              fh.write(f"resolved_cycle={cycle}\n")
           print(command)
           PY
 
@@ -325,6 +345,7 @@ jobs:
             echo "## Manual Model Run"
             echo
             echo "- Task: \`${{ inputs.task }}\`"
+            echo "- Resolved date/cycle: \`${{ steps.command.outputs.resolved_date }} ${{ steps.command.outputs.resolved_cycle }}Z\`"
             echo "- Command: \`${{ steps.command.outputs.command }}\`"
             echo "- Artifact directory: \`${{ steps.command.outputs.artifact_dir }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
