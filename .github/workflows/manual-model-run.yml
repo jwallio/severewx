@@ -151,11 +151,6 @@ on:
         required: false
         default: false
         type: boolean
-      auto_train_models:
-        description: "Train missing forecast models before model runs"
-        required: false
-        default: true
-        type: boolean
       extra_args:
         description: "Additional CLI arguments appended verbatim"
         required: false
@@ -233,7 +228,6 @@ jobs:
           SKIP_EVAL: ${{ inputs.skip_eval }}
           ALLOW_FALLBACK_PUBLICATION: ${{ inputs.allow_fallback_publication }}
           OVERWRITE: ${{ inputs.overwrite }}
-          AUTO_TRAIN_MODELS: ${{ inputs.auto_train_models }}
           EXTRA_ARGS: ${{ inputs.extra_args }}
         run: |
           python - <<'PY'
@@ -347,12 +341,11 @@ jobs:
               fh.write(f"resolved_date={date}\n")
               fh.write(f"resolved_cycle={cycle}\n")
               fh.write(f"needs_forecast_models={str(task in {'forecast', 'forecast_consensus'}).lower()}\n")
-              fh.write(f"auto_train_models={str(os.environ.get('AUTO_TRAIN_MODELS', 'false')).lower()}\n")
           print(command)
           PY
 
       - name: Train missing forecast models
-        if: ${{ steps.command.outputs.auto_train_models == 'true' && steps.command.outputs.needs_forecast_models == 'true' }}
+        if: ${{ steps.command.outputs.needs_forecast_models == 'true' }}
         shell: bash
         env:
           SEVEREWX_CONFIG: config.github-actions.yaml
