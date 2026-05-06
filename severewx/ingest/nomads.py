@@ -41,6 +41,7 @@ REMOTE_STAGED_SOURCES = {
     "nam_recent",
 }
 REALTIME_SOURCES = {"nomads", "local_file", "local_staged_gfs", *REMOTE_STAGED_SOURCES}
+_CURVILINEAR_REMAP_CACHE: dict[tuple[object, ...], np.ndarray] = {}
 
 STANDARD_FIELDS = [
     "t2m",
@@ -193,20 +194,53 @@ def _rectilinearize_curvilinear_dataset(dataset: xr.Dataset, settings: AppSettin
     source_lat = np.asarray(lat_coord.values, dtype=float)
     source_lon = np.asarray(lon_coord.values, dtype=float)
     source_lon = np.where(source_lon > 180.0, source_lon - 360.0, source_lon)
+    lat_min = float(settings.get("grid.lat_min"))
+    lat_max = float(settings.get("grid.lat_max"))
+    lon_min = float(settings.get("grid.lon_min"))
+    lon_max = float(settings.get("grid.lon_max"))
+    lat_step = float(settings.get("grid.lat_step"))
+    lon_step = float(settings.get("grid.lon_step"))
+    lat_pad = max(1.0, lat_step * 4.0)
+    lon_pad = max(1.0, lon_step * 4.0)
     finite_mask = np.isfinite(source_lat) & np.isfinite(source_lon)
+    domain_mask = (
+        finite_mask
+        & (source_lat >= lat_min - lat_pad)
+        & (source_lat <= lat_max + lat_pad)
+        & (source_lon >= lon_min - lon_pad)
+        & (source_lon <= lon_max + lon_pad)
+    )
+    if domain_mask.any():
+        finite_mask = domain_mask
     if not finite_mask.any():
         return dataset
 
-    target_lat = _target_axis(float(settings.get("grid.lat_min")), float(settings.get("grid.lat_max")), float(settings.get("grid.lat_step")))
-    target_lon = _target_axis(float(settings.get("grid.lon_min")), float(settings.get("grid.lon_max")), float(settings.get("grid.lon_step")))
+    target_lat = _target_axis(lat_min, lat_max, lat_step)
+    target_lon = _target_axis(lon_min, lon_max, lon_step)
     target_lon_grid, target_lat_grid = np.meshgrid(target_lon, target_lat)
 
-    from scipy.spatial import cKDTree
+    key = (
+        source_lat.shape,
+        round(float(np.nanmin(source_lat)), 4),
+        round(float(np.nanmax(source_lat)), 4),
+        round(float(np.nanmin(source_lon)), 4),
+        round(float(np.nanmax(source_lon)), 4),
+        round(lat_min, 4),
+        round(lat_max, 4),
+        round(lat_step, 4),
+        round(lon_min, 4),
+        round(lon_max, 4),
+        round(lon_step, 4),
+    )
+    flat_source_index = _CURVILINEAR_REMAP_CACHE.get(key)
+    if flat_source_index is None:
+        from scipy.spatial import cKDTree
 
-    source_points = np.column_stack([source_lat[finite_mask], source_lon[finite_mask]])
-    target_points = np.column_stack([target_lat_grid.ravel(), target_lon_grid.ravel()])
-    _, nearest_index = cKDTree(source_points).query(target_points, k=1)
-    flat_source_index = np.flatnonzero(finite_mask.ravel())[nearest_index]
+        source_points = np.column_stack([source_lat[finite_mask], source_lon[finite_mask]])
+        target_points = np.column_stack([target_lat_grid.ravel(), target_lon_grid.ravel()])
+        _, nearest_index = cKDTree(source_points).query(target_points, k=1)
+        flat_source_index = np.flatnonzero(finite_mask.ravel())[nearest_index]
+        _CURVILINEAR_REMAP_CACHE[key] = flat_source_index
 
     data_vars: dict[str, tuple[tuple[str, str], np.ndarray]] = {}
     for name, data in dataset.data_vars.items():
