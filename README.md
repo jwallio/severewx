@@ -45,6 +45,8 @@ data/
   archive/
 ```
 
+`data/` is intentionally ignored. Trained model binaries, raw forecast files, generated maps, Pages output, and runtime inventories should be promoted through explicit artifact bundles rather than normal Git commits. See [docs/model_artifacts.md](/d:/severewx/docs/model_artifacts.md) and [docs/repo_consolidation.md](/d:/severewx/docs/repo_consolidation.md).
+
 ## Data Flow
 
 1. Ingest Day 1-4 forecast grids from NOMADS, a staged local GFS archive, or a configured local-file source, with synthetic fallback reserved for tests and local recovery.
