@@ -321,6 +321,10 @@ def test_grib_filters_disambiguate_surface_cape_and_cin() -> None:
     assert FIELD_FILTERS["cin"]["typeOfLevel"] == "surface"
 
 
+def test_mslp_filter_supports_hrrr_and_rap_short_names() -> None:
+    assert FIELD_FILTERS["mslp"] == [{"shortName": "prmsl"}, {"shortName": "mslma"}, {"shortName": "mslet"}]
+
+
 def test_curvilinear_remote_grib_grid_remaps_to_configured_lat_lon() -> None:
     settings = load_settings()
     settings.raw["grid"]["lat_min"] = 35.0

@@ -61,10 +61,10 @@ STANDARD_FIELDS = [
     "t500",
 ]
 
-FIELD_FILTERS: dict[str, dict[str, Any]] = {
+FIELD_FILTERS: dict[str, dict[str, Any] | list[dict[str, Any]]] = {
     "t2m": {"shortName": "2t"},
     "td2m": {"shortName": "2d"},
-    "mslp": {"shortName": "prmsl"},
+    "mslp": [{"shortName": "prmsl"}, {"shortName": "mslma"}, {"shortName": "mslet"}],
     "u10": {"shortName": "10u"},
     "v10": {"shortName": "10v"},
     "cape": {"shortName": "cape", "typeOfLevel": "surface"},
@@ -506,24 +506,28 @@ class NomadsForecastSource:
 
     @staticmethod
     def _open_grib_field(grib_path: Path, field_name: str) -> xr.DataArray | None:
-        filters = FIELD_FILTERS[field_name]
-        try:
-            opened = xr.open_dataset(
-                grib_path,
-                engine="cfgrib",
-                backend_kwargs={"filter_by_keys": filters, "indexpath": ""},
-            )
-        except Exception:
-            return None
-        if not opened.data_vars:
-            return None
-        first_name = next(iter(opened.data_vars))
-        data = opened[first_name]
-        if "latitude" in data.coords:
-            data = data.rename({"latitude": "lat"})
-        if "longitude" in data.coords:
-            data = data.rename({"longitude": "lon"})
-        return data
+        filter_options = FIELD_FILTERS[field_name]
+        if isinstance(filter_options, dict):
+            filter_options = [filter_options]
+        for filters in filter_options:
+            try:
+                opened = xr.open_dataset(
+                    grib_path,
+                    engine="cfgrib",
+                    backend_kwargs={"filter_by_keys": filters, "indexpath": ""},
+                )
+            except Exception:
+                continue
+            if not opened.data_vars:
+                continue
+            first_name = next(iter(opened.data_vars))
+            data = opened[first_name]
+            if "latitude" in data.coords:
+                data = data.rename({"latitude": "lat"})
+            if "longitude" in data.coords:
+                data = data.rename({"longitude": "lon"})
+            return data
+        return None
 
     @classmethod
     def _open_grib(cls, grib_path: Path, valid_time: pd.Timestamp, settings: AppSettings) -> tuple[xr.Dataset, dict[str, Any]]:
