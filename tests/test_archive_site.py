@@ -94,3 +94,30 @@ def test_archive_site_builds_latest_run_day_dropdown_without_old_maps(tmp_path) 
     assert (paths.archive / ".nojekyll").exists()
     assert (paths.archive / "assets" / "data" / "outputs" / "github_actions" / latest_dir.name / latest_image.name).exists()
     assert not (paths.archive / "assets" / "data" / "outputs" / "maps" / old_forecast_map.name).exists()
+
+
+def test_archive_site_warns_when_latest_run_ingest_is_not_real(tmp_path) -> None:
+    settings = load_settings()
+    settings.raw["paths"]["root"] = str(tmp_path)
+    paths = build_paths(settings)
+    for day in (1, 2, 3):
+        _write_product(paths, "2026-05-05", "12", day)
+    (paths.outputs / "forecast_metadata_2026-05-05_12.json").write_text(
+        json.dumps(
+            {
+                "init_date": "2026-05-05",
+                "ingest_summary": {
+                    "source": "synthetic_fallback",
+                    "source_mode": "synthetic",
+                    "real_ingest_available": False,
+                    "available_fields": ["cape"],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    html_text = build_archive_site(paths).read_text(encoding="utf-8")
+
+    assert "Non-real forecast ingest detected" in html_text
+    assert "source=synthetic_fallback" in html_text

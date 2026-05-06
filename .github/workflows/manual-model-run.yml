@@ -346,6 +346,42 @@ jobs:
           print(command)
           PY
 
+      - name: Restore released model bundle
+        if: ${{ steps.command.outputs.needs_forecast_models == 'true' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MODEL_BUNDLE_TAG: models-2026-05-06
+        run: |
+          set -euo pipefail
+          mkdir -p data/model_bundles data/models
+          gh release download "${MODEL_BUNDLE_TAG}" \
+            --repo "${{ github.repository }}" \
+            --pattern 'severewx_model_bundle_*.zip' \
+            --dir data/model_bundles \
+            --clobber
+          bundle="$(find data/model_bundles -maxdepth 1 -name 'severewx_model_bundle_*.zip' | sort | tail -n 1)"
+          if [ -z "${bundle}" ]; then
+            echo "No released model bundle found for ${MODEL_BUNDLE_TAG}."
+            exit 1
+          fi
+          unzip -o "${bundle}" 'data/models/*' -d .
+          python - <<'PY'
+          from pathlib import Path
+
+          required = [
+              "tornado_model.joblib",
+              "hail_model.joblib",
+              "wind_model.joblib",
+              "any_model.joblib",
+              "outbreak_model.joblib",
+          ]
+          missing = [name for name in required if not (Path("data/models") / name).exists()]
+          if missing:
+              raise SystemExit(f"released model bundle is missing required models: {missing}")
+          print("released forecast model bundle restored")
+          PY
+
       - name: Train missing forecast models
         if: ${{ steps.command.outputs.needs_forecast_models == 'true' }}
         shell: bash

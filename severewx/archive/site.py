@@ -357,6 +357,18 @@ def _json_script(payload: dict[str, Any]) -> str:
     return json.dumps(payload, sort_keys=True).replace("</", "<\\/")
 
 
+def _non_real_ingest_warning(metadata: dict[str, Any] | None) -> str | None:
+    ingest = (metadata or {}).get("ingest_summary", {})
+    if not isinstance(ingest, dict):
+        return None
+    source = str(ingest.get("source", "unknown"))
+    source_mode = str(ingest.get("source_mode", "unknown"))
+    real_available = bool(ingest.get("real_ingest_available", source_mode == "real"))
+    if source_mode == "real" and real_available and source not in {"synthetic", "synthetic_fallback", "synthetic_degraded"}:
+        return None
+    return f"Non-real forecast ingest detected: source={source}, source_mode={source_mode}, real_ingest_available={real_available}."
+
+
 def _append_latest_run_viewer(rows: list[str], paths: DataPaths) -> None:
     run = _latest_product_run(_tornado_concern_product_cards(paths))
     rows.append("<section class='viewer-section'>")
@@ -370,6 +382,8 @@ def _append_latest_run_viewer(rows: list[str], paths: DataPaths) -> None:
         rows.append("<div class='empty-state'><h2>No publishable forecast products found</h2><p>Product metadata exists, but no map images were available to copy into Pages.</p></div></section>")
         rows.append(f"<script>window.SEVEREWX_RUN={_json_script(payload)};</script>")
         return
+    metadata = _forecast_metadata_for_run(paths, str(payload["initDate"]), str(payload["cycle"]))
+    warning = _non_real_ingest_warning(metadata)
     first = products[0]
     status_values = sorted({str(product["publicationStatus"]) for product in products if product["publicationStatus"]})
     status_text = ", ".join(status_values) if status_values else "unknown"
@@ -392,6 +406,8 @@ def _append_latest_run_viewer(rows: list[str], paths: DataPaths) -> None:
         "</select>"
         "</label>"
         "</div>"
+        + (f"<p class='source-warning'>{_escape(warning)}</p>" if warning else "")
+        +
         "<figure class='map-viewer'>"
         f"<a id='risk-image-link' href='{_escape(first['imageAsset'])}'><img id='risk-image' src='{_escape(first['imageAsset'])}' alt='{_escape(first['label'])}'></a>"
         f"<figcaption id='risk-caption'>{_escape(first['label'])} | valid {_escape(first['validLabel'])}</figcaption>"
@@ -425,7 +441,6 @@ def _append_latest_run_viewer(rows: list[str], paths: DataPaths) -> None:
         "}());"
         "</script>"
     )
-    metadata = _forecast_metadata_for_run(paths, str(payload["initDate"]), str(payload["cycle"]))
     if metadata:
         rows.append("<section class='diagnostics-section'><details><summary>Forecast diagnostics</summary>")
         ingest = metadata.get("ingest_summary", {})
@@ -536,6 +551,7 @@ def build_archive_site(paths: DataPaths) -> Path:
         ".day-picker select{font:inherit;padding:9px 10px;border:1px solid #b8c4cf;border-radius:6px;background:#fff;color:#18212b;}"
         ".map-viewer{margin:0;}"
         ".map-viewer img{width:100%;border:1px solid #cfd8df;border-radius:6px;background:#fff;}"
+        ".source-warning{border:1px solid #d39a24;background:#fff7e5;color:#5d3a00;border-radius:6px;padding:10px 12px;font-weight:650;}"
         ".viewer-links{margin-top:12px;}"
         ".diagnostics-section details{background:#fff;border:1px solid #cfd8df;border-radius:8px;padding:14px;}"
         ".diagnostics-section summary{cursor:pointer;font-weight:700;color:#253446;}"
