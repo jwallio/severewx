@@ -193,8 +193,9 @@ jobs:
           cat > config.github-actions.yaml <<'YAML'
           ingest:
             source: nomads
-            failover_sources: []
-            allow_synthetic_fallback: true
+            failover_sources:
+              - aws_recent
+            allow_synthetic_fallback: false
           render:
             cartopy: false
           YAML
