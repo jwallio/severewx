@@ -172,6 +172,61 @@ def _subset_to_processing_scope(dataset: xr.Dataset, settings: AppSettings) -> x
     return dataset
 
 
+def _target_axis(min_value: float, max_value: float, step: float) -> np.ndarray:
+    count = int(round((max_value - min_value) / step)) + 1
+    return (min_value + step * np.arange(count, dtype=np.float32)).round(6)
+
+
+def _rectilinearize_curvilinear_dataset(dataset: xr.Dataset, settings: AppSettings) -> xr.Dataset:
+    """Nearest-neighbor remap projected GRIB grids onto the configured lat/lon grid."""
+
+    if "lat" not in dataset.coords or "lon" not in dataset.coords:
+        return dataset
+    lat_coord = dataset["lat"]
+    lon_coord = dataset["lon"]
+    if lat_coord.ndim != 2 or lon_coord.ndim != 2:
+        return dataset
+    if lat_coord.dims != lon_coord.dims:
+        return dataset
+
+    source_dims = tuple(lat_coord.dims)
+    source_lat = np.asarray(lat_coord.values, dtype=float)
+    source_lon = np.asarray(lon_coord.values, dtype=float)
+    source_lon = np.where(source_lon > 180.0, source_lon - 360.0, source_lon)
+    finite_mask = np.isfinite(source_lat) & np.isfinite(source_lon)
+    if not finite_mask.any():
+        return dataset
+
+    target_lat = _target_axis(float(settings.get("grid.lat_min")), float(settings.get("grid.lat_max")), float(settings.get("grid.lat_step")))
+    target_lon = _target_axis(float(settings.get("grid.lon_min")), float(settings.get("grid.lon_max")), float(settings.get("grid.lon_step")))
+    target_lon_grid, target_lat_grid = np.meshgrid(target_lon, target_lat)
+
+    from scipy.spatial import cKDTree
+
+    source_points = np.column_stack([source_lat[finite_mask], source_lon[finite_mask]])
+    target_points = np.column_stack([target_lat_grid.ravel(), target_lon_grid.ravel()])
+    _, nearest_index = cKDTree(source_points).query(target_points, k=1)
+    flat_source_index = np.flatnonzero(finite_mask.ravel())[nearest_index]
+
+    data_vars: dict[str, tuple[tuple[str, str], np.ndarray]] = {}
+    for name, data in dataset.data_vars.items():
+        squeezed = data.squeeze(drop=True)
+        if not all(dim in squeezed.dims for dim in source_dims):
+            continue
+        extra_dims = [dim for dim in squeezed.dims if dim not in source_dims]
+        if extra_dims:
+            continue
+        source_values = np.asarray(squeezed.transpose(*source_dims).values, dtype=np.float32)
+        target_values = source_values.ravel()[flat_source_index].reshape(target_lat_grid.shape)
+        data_vars[name] = (("lat", "lon"), target_values.astype(np.float32))
+    if not data_vars:
+        return dataset
+    remapped = xr.Dataset(data_vars=data_vars, coords={"lat": target_lat, "lon": target_lon})
+    remapped.attrs.update(dataset.attrs)
+    remapped.attrs["curvilinear_remap"] = "nearest_to_configured_lat_lon_grid"
+    return remapped
+
+
 @dataclass(slots=True)
 class SyntheticForecastSource:
     """Synthetic fallback used for tests and local dev."""
@@ -450,6 +505,7 @@ class NomadsForecastSource:
                 assembled[field_name] = field.astype(np.float32)
         if not assembled.data_vars:
             fallback = xr.open_dataset(grib_path, engine="cfgrib")
+            fallback = _rectilinearize_curvilinear_dataset(fallback, settings)
             normalized, summary = normalize_dataset(
                 fallback,
                 valid_time=valid_time,
@@ -457,6 +513,7 @@ class NomadsForecastSource:
                 requested_leads=list(settings.get("ingest.leads", [])),
             )
             return normalized, summary
+        assembled = _rectilinearize_curvilinear_dataset(assembled, settings)
         normalized, summary = normalize_dataset(
             assembled,
             valid_time=valid_time,

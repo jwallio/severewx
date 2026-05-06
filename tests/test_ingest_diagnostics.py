@@ -319,3 +319,30 @@ def test_source_specific_staged_paths_take_precedence_over_gfs_defaults(tmp_path
 def test_grib_filters_disambiguate_surface_cape_and_cin() -> None:
     assert FIELD_FILTERS["cape"]["typeOfLevel"] == "surface"
     assert FIELD_FILTERS["cin"]["typeOfLevel"] == "surface"
+
+
+def test_curvilinear_remote_grib_grid_remaps_to_configured_lat_lon() -> None:
+    settings = load_settings()
+    settings.raw["grid"]["lat_min"] = 35.0
+    settings.raw["grid"]["lat_max"] = 36.0
+    settings.raw["grid"]["lat_step"] = 1.0
+    settings.raw["grid"]["lon_min"] = -98.0
+    settings.raw["grid"]["lon_max"] = -97.0
+    settings.raw["grid"]["lon_step"] = 1.0
+    raw = xr.Dataset(
+        {
+            "t2m": (("y", "x"), np.array([[290.0, 291.0], [292.0, 293.0]], dtype=np.float32)),
+            "cape": (("y", "x"), np.array([[1000.0, 1100.0], [1200.0, 1300.0]], dtype=np.float32)),
+        },
+        coords={
+            "lat": (("y", "x"), np.array([[35.0, 35.0], [36.0, 36.0]], dtype=np.float32)),
+            "lon": (("y", "x"), np.array([[262.0, 263.0], [262.0, 263.0]], dtype=np.float32)),
+        },
+    )
+
+    remapped = nomads_ingest._rectilinearize_curvilinear_dataset(raw, settings)
+
+    assert remapped["lat"].values.tolist() == [35.0, 36.0]
+    assert remapped["lon"].values.tolist() == [-98.0, -97.0]
+    assert remapped["t2m"].dims == ("lat", "lon")
+    assert remapped["t2m"].values.tolist() == [[290.0, 291.0], [292.0, 293.0]]
