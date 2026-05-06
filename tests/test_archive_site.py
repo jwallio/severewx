@@ -25,7 +25,14 @@ def _write_product(paths, init_date: str, cycle: str, day: int) -> tuple[object,
                 "valid_date": valid_date.isoformat(),
                 "valid_period_label": f"{valid_date.isoformat()} 00-24 UTC",
                 "map_style": "outlook",
-                "map_domain": "regional",
+                "map_domain": "conus",
+                "artifact_source_requested": "consensus",
+                "render_basemap_mode": "cartopy",
+                "render_basemap_warning": "",
+                "forecast_consensus_summary": {
+                    "included_sources": ["hrrr_recent", "rap_recent", "nam_recent", "aws_recent"],
+                    "excluded_sources": [],
+                },
                 "publication_status": "needs_render_review",
                 "public_ready": day != 2,
                 "generation_timestamp": f"{init_date}T0{day}:00:00Z",
@@ -55,11 +62,18 @@ def test_archive_site_builds_latest_run_day_dropdown_without_old_maps(tmp_path) 
     for day in (1, 2, 3):
         latest_dir, latest_image = _write_product(paths, "2026-05-05", "12", day)
 
-    (paths.outputs / "forecast_metadata_2026-05-05_12.json").write_text(
+    (paths.outputs / "forecast_consensus_metadata_2026-05-05_12.json").write_text(
         json.dumps(
             {
                 "init_date": "2026-05-05",
-                "ingest_summary": {"source": "nomads", "source_mode": "real", "available_fields": ["cape"]},
+                "ingest_summary": {"source": "forecast_consensus", "source_mode": "real", "available_fields": ["cape"]},
+                "included_sources": ["hrrr_recent", "rap_recent", "nam_recent", "aws_recent"],
+                "source_models": {
+                    "hrrr_recent": "HRRR",
+                    "rap_recent": "RAP",
+                    "nam_recent": "NAM",
+                    "aws_recent": "GFS",
+                },
                 "lead_day_summary": [
                     {
                         "date": "2026-05-05",
@@ -85,6 +99,9 @@ def test_archive_site_builds_latest_run_day_dropdown_without_old_maps(tmp_path) 
     assert "Day 2 Risk" in html_text
     assert "Day 3 Risk" in html_text
     assert "window.SEVEREWX_RUN" in html_text
+    assert "hrrr_recent, rap_recent, nam_recent, aws_recent" in html_text
+    assert "\"artifactSource\": \"consensus\"" in html_text
+    assert "\"mapDomain\": \"conus\"" in html_text
     assert "Forecast diagnostics" in html_text
     assert "2026-05-03 00Z Risk Outlook" not in html_text
     assert "Forecast Runs" not in html_text
@@ -94,6 +111,24 @@ def test_archive_site_builds_latest_run_day_dropdown_without_old_maps(tmp_path) 
     assert (paths.archive / ".nojekyll").exists()
     assert (paths.archive / "assets" / "data" / "outputs" / "github_actions" / latest_dir.name / latest_image.name).exists()
     assert not (paths.archive / "assets" / "data" / "outputs" / "maps" / old_forecast_map.name).exists()
+
+
+def test_archive_site_warns_when_product_uses_fallback_basemap(tmp_path) -> None:
+    settings = load_settings()
+    settings.raw["paths"]["root"] = str(tmp_path)
+    paths = build_paths(settings)
+    _write_product(paths, "2026-05-05", "12", 1)
+    _write_product(paths, "2026-05-05", "12", 2)
+    _write_product(paths, "2026-05-05", "12", 3)
+    metadata_file = next(paths.outputs.rglob("tornado_concern_init_2026-05-05_12z_valid_2026-05-06.json"))
+    payload = json.loads(metadata_file.read_text(encoding="utf-8"))
+    payload["render_basemap_mode"] = "matplotlib_fallback"
+    payload["render_basemap_warning"] = "cartopy_unavailable_or_disabled"
+    metadata_file.write_text(json.dumps(payload), encoding="utf-8")
+
+    html_text = build_archive_site(paths).read_text(encoding="utf-8")
+
+    assert "Production CONUS basemap was not available for Day 2 Risk" in html_text
 
 
 def test_archive_site_warns_when_latest_run_ingest_is_not_real(tmp_path) -> None:

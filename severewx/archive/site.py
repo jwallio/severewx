@@ -308,6 +308,9 @@ def _latest_product_run(cards: list[dict[str, Any]]) -> dict[str, Any] | None:
 
 
 def _forecast_metadata_for_run(paths: DataPaths, init_date: str, cycle: str) -> dict[str, Any] | None:
+    consensus_exact = paths.outputs / f"forecast_consensus_metadata_{init_date}_{cycle}.json"
+    if consensus_exact.exists():
+        return _read_json(consensus_exact)
     exact = paths.outputs / f"forecast_metadata_{init_date}_{cycle}.json"
     if exact.exists():
         return _read_json(exact)
@@ -317,6 +320,38 @@ def _forecast_metadata_for_run(paths: DataPaths, init_date: str, cycle: str) -> 
         if payload:
             candidates.append(payload)
     return candidates[-1] if candidates else None
+
+
+def _as_string_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if str(item)]
+
+
+def _source_summary(metadata: dict[str, Any] | None, products: list[dict[str, Any]]) -> str:
+    source_models = (metadata or {}).get("source_models", {})
+    if isinstance(source_models, dict) and source_models:
+        return ", ".join(str(source) for source in source_models)
+    included = _as_string_list((metadata or {}).get("included_sources"))
+    if included:
+        return ", ".join(included)
+    for product in products:
+        included = _as_string_list(product.get("includedSources"))
+        if included:
+            return ", ".join(included)
+    return ""
+
+
+def _render_warning(products: list[dict[str, Any]]) -> str | None:
+    fallback_products = [
+        product
+        for product in products
+        if product.get("renderBasemapMode") and product.get("renderBasemapMode") != "cartopy"
+    ]
+    if not fallback_products:
+        return None
+    days = ", ".join(str(product.get("label") or f"Day {product.get('day')}") for product in fallback_products)
+    return f"Production CONUS basemap was not available for {days}; map is not public-ready until Cartopy rendering succeeds."
 
 
 def _run_payload(paths: DataPaths, run: dict[str, Any]) -> dict[str, Any]:
@@ -331,6 +366,9 @@ def _run_payload(paths: DataPaths, run: dict[str, Any]) -> dict[str, Any]:
         summary_asset = _copy_publish_asset(paths, card["summary_path"]) if card["summary_path"] else None
         if not image_asset:
             continue
+        consensus_summary = metadata.get("forecast_consensus_summary", {})
+        if not isinstance(consensus_summary, dict):
+            consensus_summary = {}
         products.append(
             {
                 "day": day,
@@ -343,6 +381,12 @@ def _run_payload(paths: DataPaths, run: dict[str, Any]) -> dict[str, Any]:
                 "publicationStatus": metadata.get("publication_status", ""),
                 "publicReady": bool(metadata.get("public_ready", False)),
                 "title": metadata.get("title", f"Day {day} Risk"),
+                "mapDomain": metadata.get("map_domain", ""),
+                "artifactSource": metadata.get("artifact_source_requested", ""),
+                "renderBasemapMode": metadata.get("render_basemap_mode", ""),
+                "renderBasemapWarning": metadata.get("render_basemap_warning", ""),
+                "includedSources": _as_string_list(consensus_summary.get("included_sources")),
+                "excludedSources": consensus_summary.get("excluded_sources", []),
             }
         )
     return {
@@ -373,7 +417,7 @@ def _append_latest_run_viewer(rows: list[str], paths: DataPaths) -> None:
     run = _latest_product_run(_tornado_concern_product_cards(paths))
     rows.append("<section class='viewer-section'>")
     if run is None:
-        rows.append("<div class='empty-state'><h2>No forecast products found</h2><p>Run the Manual Model Run workflow with task forecast to publish Day 1-3 risk maps.</p></div></section>")
+        rows.append("<div class='empty-state'><h2>No forecast products found</h2><p>Run the Manual Model Run workflow with task forecast_consensus to publish Day 1-3 risk maps.</p></div></section>")
         rows.append("<script>window.SEVEREWX_RUN={\"products\":[]};</script>")
         return
     payload = _run_payload(paths, run)
@@ -384,10 +428,15 @@ def _append_latest_run_viewer(rows: list[str], paths: DataPaths) -> None:
         return
     metadata = _forecast_metadata_for_run(paths, str(payload["initDate"]), str(payload["cycle"]))
     warning = _non_real_ingest_warning(metadata)
+    render_warning = _render_warning(products)
     first = products[0]
+    source_text = _source_summary(metadata, products)
     status_values = sorted({str(product["publicationStatus"]) for product in products if product["publicationStatus"]})
     status_text = ", ".join(status_values) if status_values else "unknown"
     ready_count = sum(1 for product in products if product["publicReady"])
+    source_line = f"<p class='run-meta'>sources {_escape(source_text)}</p>" if source_text else ""
+    warning_line = f"<p class='source-warning'>{_escape(warning)}</p>" if warning else ""
+    render_warning_line = f"<p class='source-warning'>{_escape(render_warning)}</p>" if render_warning else ""
     rows.append(
         "<div class='viewer-card'>"
         "<div class='viewer-header'>"
@@ -395,6 +444,7 @@ def _append_latest_run_viewer(rows: list[str], paths: DataPaths) -> None:
         "<p class='eyebrow'>Latest Forecast Run</p>"
         f"<h2>{_escape(payload['initDate'])} { _escape(payload['cycle'])}Z Risk Outlook</h2>"
         f"<p class='run-meta'>generated {_escape(payload['generatedAt'] or 'unknown')} | publication {_escape(status_text)} | public-ready {ready_count}/{len(products)}</p>"
+        f"{source_line}"
         "</div>"
         "<label class='day-picker'>"
         "<span>Risk day</span>"
@@ -406,8 +456,8 @@ def _append_latest_run_viewer(rows: list[str], paths: DataPaths) -> None:
         "</select>"
         "</label>"
         "</div>"
-        + (f"<p class='source-warning'>{_escape(warning)}</p>" if warning else "")
-        +
+        f"{warning_line}"
+        f"{render_warning_line}"
         "<figure class='map-viewer'>"
         f"<a id='risk-image-link' href='{_escape(first['imageAsset'])}'><img id='risk-image' src='{_escape(first['imageAsset'])}' alt='{_escape(first['label'])}'></a>"
         f"<figcaption id='risk-caption'>{_escape(first['label'])} | valid {_escape(first['validLabel'])}</figcaption>"
@@ -449,6 +499,8 @@ def _append_latest_run_viewer(rows: list[str], paths: DataPaths) -> None:
                 {
                     "source": ingest.get("source"),
                     "source_mode": ingest.get("source_mode"),
+                    "included_sources": ", ".join(_as_string_list(metadata.get("included_sources"))),
+                    "source_models": ", ".join(str(source) for source in metadata.get("source_models", {}) if isinstance(metadata.get("source_models", {}), dict)),
                     "fields": ", ".join(ingest.get("available_fields", [])),
                     "missing_requested_leads": ingest.get("missing_requested_leads", []),
                     "fallbacks_used": ingest.get("fallbacks_used", {}),
