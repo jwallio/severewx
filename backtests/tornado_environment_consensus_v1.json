@@ -1,0 +1,100 @@
+{
+  "manifest_id": "tornado_environment_consensus_v1",
+  "description": "Fixed Day 1-3 CONUS tornado-environment consensus backtest seed set.",
+  "target_product": {
+    "field": "tornado_environment_outlook_hybrid_consensus",
+    "artifact_source": "consensus",
+    "map_domain": "conus",
+    "map_style": "outlook",
+    "display_preset": "auto",
+    "lead_days": [1, 2, 3],
+    "synthetic_fallback_allowed": false,
+    "default_sources": ["hrrr_recent", "rap_recent", "nam_recent", "aws_recent"]
+  },
+  "cases": [
+    {
+      "case_id": "2024-03-14_active_severe",
+      "date": "2024-03-14",
+      "cycle": "00",
+      "tags": ["active_severe", "tornado_relevant", "day1"],
+      "expected_signal": "active_non_outbreak_severe_day"
+    },
+    {
+      "case_id": "2024-04-02_outbreak",
+      "date": "2024-04-02",
+      "cycle": "00",
+      "tags": ["outbreak", "tornado_relevant", "day1"],
+      "expected_signal": "tornado_outbreak_day"
+    },
+    {
+      "case_id": "2024-04-10_null",
+      "date": "2024-04-10",
+      "cycle": "00",
+      "tags": ["null", "quiet_period"],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2024-04-26_mixed_mode",
+      "date": "2024-04-26",
+      "cycle": "00",
+      "tags": ["mixed_mode", "tornado_relevant", "hail_wind_competing"],
+      "expected_signal": "mixed_hazard_day"
+    },
+    {
+      "case_id": "2024-05-06_plains",
+      "date": "2024-05-06",
+      "cycle": "00",
+      "tags": ["plains", "tornado_relevant", "outbreak"],
+      "expected_signal": "tornado_outbreak_day"
+    },
+    {
+      "case_id": "2024-05-21_iowa",
+      "date": "2024-05-21",
+      "cycle": "00",
+      "tags": ["significant_tornado", "tornado_relevant", "regional_outbreak"],
+      "expected_signal": "significant_tornado_day"
+    },
+    {
+      "case_id": "2024-05-25_plains",
+      "date": "2024-05-25",
+      "cycle": "00",
+      "tags": ["plains", "tornado_relevant", "multi_day_sequence"],
+      "expected_signal": "tornado_outbreak_day"
+    },
+    {
+      "case_id": "2024-05-26_high_end",
+      "date": "2024-05-26",
+      "cycle": "00",
+      "tags": ["high_end", "tornado_relevant", "multi_day_sequence"],
+      "expected_signal": "tornado_outbreak_day"
+    },
+    {
+      "case_id": "2024-06-01_hail_wind",
+      "date": "2024-06-01",
+      "cycle": "00",
+      "tags": ["hail_wind_competing", "warm_season"],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2025-03-14_southeast",
+      "date": "2025-03-14",
+      "cycle": "00",
+      "tags": ["southeast", "tornado_relevant", "cool_season"],
+      "expected_signal": "tornado_outbreak_day"
+    },
+    {
+      "case_id": "2025-03-15_southeast",
+      "date": "2025-03-15",
+      "cycle": "00",
+      "tags": ["southeast", "tornado_relevant", "multi_day_sequence"],
+      "expected_signal": "tornado_outbreak_day"
+    },
+    {
+      "case_id": "2025-04-02_plains",
+      "date": "2025-04-02",
+      "cycle": "00",
+      "tags": ["plains", "tornado_relevant", "spring"],
+      "expected_signal": "tornado_relevant_day"
+    }
+  ]
+}
