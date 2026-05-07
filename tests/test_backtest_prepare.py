@@ -96,3 +96,74 @@ def test_prepare_backtest_cases_records_available_and_unavailable_sources(tmp_pa
         {"source": "rap_recent", "reason": "source_run_failed_or_unavailable"}
     ]
     assert payload["case_summary"][0]["ready_for_scoring"] is True
+
+
+def test_prepare_backtest_cases_can_build_consensus_products_and_scores(tmp_path, monkeypatch) -> None:
+    settings = load_settings()
+    settings.raw["paths"]["root"] = str(tmp_path)
+    monkeypatch.setattr(prep, "load_settings", lambda: settings)
+    paths = build_paths(settings)
+
+    def fake_run_source_product(date, cycle, source, settings, *, skip_render):
+        product_path = prep.source_product_path(paths.outputs, date, cycle, source)
+        metadata_path = prep.source_metadata_path(paths.outputs, date, cycle, source)
+        product_path.parent.mkdir(parents=True, exist_ok=True)
+        product_path.write_text("fake-netcdf", encoding="utf-8")
+        metadata_path.write_text(json.dumps({"ingest_summary": {"source": source, "source_mode": "real"}}), encoding="utf-8")
+        return ConsensusSource(source, product_path, metadata_path)
+
+    def fake_build_consensus(*, date, cycle, sources, output_path, metadata_path, field_name, unavailable_sources):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text("fake-consensus", encoding="utf-8")
+        metadata_path.write_text(json.dumps({"included_sources": [source.name for source in sources]}), encoding="utf-8")
+        return output_path, metadata_path
+
+    def fake_build_product_bundle(**kwargs):
+        valid_date = kwargs["valid_date"]
+        outdir = kwargs["outdir"]
+        outdir.mkdir(parents=True, exist_ok=True)
+        metadata_path = outdir / f"{valid_date}.json"
+        image_path = outdir / f"{valid_date}.png"
+        metadata_path.write_text("{}", encoding="utf-8")
+        image_path.write_text("png", encoding="utf-8")
+        return {
+            "metadata_path": str(metadata_path),
+            "main_image_path": str(image_path),
+            "publication_status": "public_candidate",
+            "public_ready": True,
+            "max_tornado_concern_prob": 0.25,
+        }
+
+    def fake_verify(paths, case):
+        output = paths.verification / "backtests" / f"{case.case_id}_verification.json"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(
+            json.dumps({"per_day": [{"observed_tornado_outbreak": 1, "observed_any_outbreak": 1, "tornado_brier": 0.1}]}),
+            encoding="utf-8",
+        )
+        return output, ""
+
+    monkeypatch.setattr(prep, "_run_source_product", fake_run_source_product)
+    monkeypatch.setattr(prep, "build_forecast_consensus", fake_build_consensus)
+    monkeypatch.setattr(prep, "build_product_bundle", fake_build_product_bundle)
+    monkeypatch.setattr(prep, "_verify_case", fake_verify)
+
+    _, rows, outputs = prep.prepare_backtest_cases(
+        manifest_path=prep.DEFAULT_MANIFEST,
+        output_dir=tmp_path / "backtests",
+        sources_value="hrrr_recent",
+        limit=1,
+        build_consensus=True,
+        build_products=True,
+        verify=True,
+        score=True,
+    )
+
+    assert rows[-1]["source"] == "forecast_consensus"
+    assert rows[-1]["status"] == "available"
+    payload = json.loads(outputs[1].read_text(encoding="utf-8"))
+    assert len(payload["products"]) == 3
+    assert payload["products"][0]["public_ready"] is True
+    assert payload["scores"][0]["verification_status"] == "available"
+    assert payload["scores"][0]["observed_tornado_outbreak_any"] is True
+    assert payload["scores"][0]["max_day1_3_tornado_concern"] == 0.25
