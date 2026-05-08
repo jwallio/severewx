@@ -10,6 +10,7 @@ from severewx.cli.stage_historical_gfs import main as stage_historical_gfs_main
 from severewx.config import load_settings
 from severewx.ingest.stage_gfs import (
     NOAA_GRIB_SOURCE_SPECS,
+    OPEN_METEO_SOURCE_SPECS,
     build_source_attempts,
     build_source_urls,
     resolve_source_names,
@@ -102,6 +103,12 @@ def test_model_specific_recent_source_templates_and_output_names() -> None:
 
     gefs_attempts = build_source_attempts("2026-05-03", "00", 72, "data/raw/staged_forecasts/gefs_mean_recent", source_strategy="gefs_mean_recent")
     assert gefs_attempts[0]["url"] == "https://noaa-gefs-pds.s3.amazonaws.com/gefs.20260503/00/atmos/pgrb2sp25/geavg.t00z.pgrb2s.0p25.f072"
+
+    ecmwf_attempts = build_source_attempts("2026-05-03", "00", 72, "data/raw/staged_forecasts/ecmwf_recent", source_strategy="ecmwf_recent")
+    assert ecmwf_attempts == [{"source_name": "ecmwf_recent", "url": OPEN_METEO_SOURCE_SPECS["ecmwf_recent"]["endpoint"]}]
+    assert staged_forecast_output_path("data/raw/staged_forecasts/ecmwf_recent", "2026-05-03", "00", 72, source_name="ecmwf_recent").as_posix().endswith(
+        "/data/raw/staged_forecasts/ecmwf_recent/2026-05-03/00/ecmwf_ifs.t00z.0p25.f072.nc"
+    )
 
 
 def test_stage_historical_gfs_downloads_and_skips_existing(tmp_path: Path) -> None:
@@ -325,3 +332,137 @@ def test_stage_historical_gfs_open_meteo_recent_allows_null_hourly_values(tmp_pa
         assert float(dataset["td2m"].values[0, 0, 0]) != float(dataset["td2m"].values[0, 0, 0])  # NaN
     finally:
         dataset.close()
+
+
+def test_stage_historical_gfs_ecmwf_recent_writes_distinct_netcdf(tmp_path: Path) -> None:
+    settings = _settings_for_stage(tmp_path)
+    paths = build_paths(settings)
+    stage_root = paths.raw / "staged_forecasts" / "ecmwf_recent"
+    api_url = (
+        "https://historical-forecast-api.open-meteo.com/v1/forecast?"
+        "start_date=2026-04-09&end_date=2026-04-09&models=ecmwf_ifs025&timezone=GMT"
+        "&latitude=20.0&longitude=-130.0"
+        "&hourly=temperature_2m&hourly=dew_point_2m&hourly=pressure_msl&hourly=wind_speed_10m&hourly=wind_direction_10m"
+        "&hourly=cape&hourly=convective_inhibition&hourly=temperature_700hPa&hourly=geopotential_height_500hPa"
+        "&hourly=wind_speed_850hPa&hourly=wind_direction_850hPa&hourly=wind_speed_500hPa&hourly=wind_direction_500hPa"
+        "&hourly=temperature_500hPa&hourly=total_column_integrated_water_vapour"
+    )
+    payload = [
+        {
+            "latitude": 20.0,
+            "longitude": -130.0,
+            "hourly": {
+                "time": ["2026-04-09T00:00"],
+                "temperature_2m": [20.0],
+                "dew_point_2m": [15.0],
+                "pressure_msl": [1000.0],
+                "wind_speed_10m": [36.0],
+                "wind_direction_10m": [180.0],
+                "cape": [1200.0],
+                "convective_inhibition": [-25.0],
+                "temperature_700hPa": [-8.0],
+                "geopotential_height_500hPa": [5700.0],
+                "wind_speed_850hPa": [54.0],
+                "wind_direction_850hPa": [225.0],
+                "wind_speed_500hPa": [72.0],
+                "wind_direction_500hPa": [270.0],
+                "temperature_500hPa": [-18.0],
+                "total_column_integrated_water_vapour": [32.0],
+            },
+        }
+    ]
+    session = _FakeSession({api_url: (200, None, payload)})
+    settings.raw["grid"]["lat_min"] = 20.0
+    settings.raw["grid"]["lat_max"] = 20.0
+    settings.raw["grid"]["lon_min"] = -130.0
+    settings.raw["grid"]["lon_max"] = -130.0
+    settings.raw.setdefault("ingest", {}).setdefault("open_meteo_recent", {})["grid_step_degrees"] = 2.0
+
+    report = stage_historical_gfs(
+        "2026-04-09",
+        "2026-04-09",
+        ["00"],
+        [0],
+        stage_root,
+        paths,
+        settings=settings,
+        session=session,
+        source_strategy="ecmwf_recent",
+        retries=1,
+        backoff_seconds=0,
+    )
+
+    staged_path = stage_root / "2026-04-09" / "00" / "ecmwf_ifs.t00z.0p25.f000.nc"
+    assert report["output_source_name"] == "ecmwf_recent"
+    assert report["successful_downloads"] == 1
+    assert report["successful_downloads_by_source"] == {"ecmwf_recent": 1}
+    assert staged_path.exists()
+
+
+def test_open_meteo_sources_default_to_representative_valid_day_leads(tmp_path: Path) -> None:
+    settings = _settings_for_stage(tmp_path)
+    paths = build_paths(settings)
+    stage_root = paths.raw / "staged_forecasts" / "ecmwf_recent"
+    settings.raw["grid"]["lat_min"] = 20.0
+    settings.raw["grid"]["lat_max"] = 20.0
+    settings.raw["grid"]["lon_min"] = -130.0
+    settings.raw["grid"]["lon_max"] = -130.0
+    settings.raw.setdefault("ingest", {}).setdefault("open_meteo_recent", {})["grid_step_degrees"] = 2.0
+    responses = {}
+    for valid_date, lead in [("2026-04-09", 0), ("2026-04-10", 24), ("2026-04-11", 48)]:
+        api_url = (
+            "https://historical-forecast-api.open-meteo.com/v1/forecast?"
+            f"start_date={valid_date}&end_date={valid_date}&models=ecmwf_ifs025&timezone=GMT"
+            "&latitude=20.0&longitude=-130.0"
+            "&hourly=temperature_2m&hourly=dew_point_2m&hourly=pressure_msl&hourly=wind_speed_10m&hourly=wind_direction_10m"
+            "&hourly=cape&hourly=convective_inhibition&hourly=temperature_700hPa&hourly=geopotential_height_500hPa"
+            "&hourly=wind_speed_850hPa&hourly=wind_direction_850hPa&hourly=wind_speed_500hPa&hourly=wind_direction_500hPa"
+            "&hourly=temperature_500hPa&hourly=total_column_integrated_water_vapour"
+        )
+        responses[api_url] = (
+            200,
+            None,
+            [
+                {
+                    "latitude": 20.0,
+                    "longitude": -130.0,
+                    "hourly": {
+                        "time": [f"{valid_date}T00:00"],
+                        "temperature_2m": [20.0],
+                        "dew_point_2m": [15.0],
+                        "pressure_msl": [1000.0],
+                        "wind_speed_10m": [36.0],
+                        "wind_direction_10m": [180.0],
+                        "cape": [1200.0],
+                        "convective_inhibition": [-25.0],
+                        "temperature_700hPa": [-8.0],
+                        "geopotential_height_500hPa": [5700.0],
+                        "wind_speed_850hPa": [54.0],
+                        "wind_direction_850hPa": [225.0],
+                        "wind_speed_500hPa": [72.0],
+                        "wind_direction_500hPa": [270.0],
+                        "temperature_500hPa": [-18.0],
+                        "total_column_integrated_water_vapour": [32.0],
+                    },
+                }
+            ],
+        )
+    session = _FakeSession(responses)
+
+    report = stage_historical_gfs(
+        "2026-04-09",
+        "2026-04-09",
+        ["00"],
+        [0, 6, 12, 24, 30, 48],
+        stage_root,
+        paths,
+        settings=settings,
+        session=session,
+        source_strategy="ecmwf_recent",
+        retries=1,
+        backoff_seconds=0,
+    )
+
+    assert report["target_count"] == 3
+    assert report["attempted_downloads"] == 3
+    assert [row["lead_hour"] for row in report["results"]] == [0, 24, 48]

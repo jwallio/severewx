@@ -316,6 +316,70 @@ def test_source_specific_staged_paths_take_precedence_over_gfs_defaults(tmp_path
     assert "staged_gfs" in str(candidates[2])
 
 
+def test_ingest_can_use_ecmwf_as_open_meteo_backed_remote_source(tmp_path, monkeypatch) -> None:
+    settings = load_settings()
+    settings.raw["paths"]["root"] = str(tmp_path)
+    settings.raw["paths"]["data"] = str(tmp_path / "data")
+    settings.raw["paths"]["raw"] = str(tmp_path / "data" / "raw")
+    settings.raw["paths"]["interim"] = str(tmp_path / "data" / "interim")
+    settings.raw["paths"]["outputs"] = str(tmp_path / "data" / "outputs")
+    settings.raw["ingest"]["source"] = "ecmwf_recent"
+    settings.raw["ingest"]["allow_synthetic_fallback"] = False
+    settings.raw["ingest"]["leads"] = [0, 6]
+    paths = build_paths(settings)
+
+    def fake_stage_historical_gfs(
+        *,
+        start,
+        end,
+        cycles,
+        leads,
+        output_root,
+        paths: object,
+        settings,
+        source_strategy,
+        timeout,
+        retries,
+        backoff_seconds,
+    ):
+        assert output_root == paths.raw / "staged_forecasts" / "ecmwf_recent"
+        assert source_strategy == "ecmwf_recent"
+        return {
+            "report_path": str(paths.interim / "staged_gfs_download_2026-05-03_2026-05-03_00.json"),
+            "successful_downloads": 2,
+            "skipped_existing_files": 0,
+            "failed_downloads": 0,
+            "successful_downloads_by_source": {"ecmwf_recent": 2},
+            "results": [
+                {"lead_hour": 0, "status": "downloaded"},
+                {"lead_hour": 24, "status": "downloaded"},
+            ],
+        }
+
+    def fake_local_staged_fetch(self, date, cycle, settings, paths):
+        assert self.source_name == "local_staged_ecmwf_recent"
+        assert self.stage_root == paths.raw / "staged_forecasts" / "ecmwf_recent"
+        assert self.stage_source_name == "ecmwf_recent"
+        assert settings.get("ingest.leads") == [0, 24]
+        dataset, summary = SyntheticForecastSource().fetch_cycle(date, cycle, settings, paths)
+        summary["source"] = self.source_name
+        summary["source_mode"] = "real"
+        dataset.attrs["source"] = self.source_name
+        return dataset, summary
+
+    monkeypatch.setattr(nomads_ingest, "stage_historical_gfs", fake_stage_historical_gfs)
+    monkeypatch.setattr(nomads_ingest.LocalStagedGFSForecastSource, "fetch_cycle", fake_local_staged_fetch)
+
+    output = nomads_ingest.ingest_forecast_cycle("2026-05-03", "00", settings=settings)
+    summary = pd.read_json(paths.interim / "ingest_summary_2026-05-03_00.json", typ="series")
+
+    assert output.exists()
+    assert summary["source"] == "ecmwf_recent"
+    assert summary["source_model"] == "ecmwf_ifs"
+    assert summary["remote_stage_strategy"] == "ecmwf_recent"
+    assert summary["remote_stage_output_source_name"] == "ecmwf_recent"
+
+
 def test_grib_filters_disambiguate_surface_cape_and_cin() -> None:
     assert FIELD_FILTERS["cape"]["typeOfLevel"] == "surface"
     assert FIELD_FILTERS["cin"]["typeOfLevel"] == "surface"

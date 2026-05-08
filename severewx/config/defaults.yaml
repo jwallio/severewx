@@ -28,6 +28,11 @@ ingest:
       - "{root}/data/raw/staged_gfs/{date}/{cycle}/gfs.t{cycle}z.pgrb2.0p25.f{lead:03d}.grib2"
       - "{root}/data/raw/staged_gfs/{date_nodash}/{cycle}/gfs.t{cycle}z.pgrb2.0p25.f{lead:03d}.grib2"
       - "{root}/data/raw/staged_gfs/{year}/{date}/{cycle}/gfs.t{cycle}z.pgrb2.0p25.f{lead:03d}.grib2"
+  open_meteo_recent:
+    grid_step_degrees: 8.0
+    chunk_size: 12
+    pause_seconds: 0.75
+    representative_leads_only: true
   allow_partial_cycle: false
   required_fields:
     - t2m

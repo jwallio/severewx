@@ -52,7 +52,7 @@ on:
         default: ""
         type: string
       sources:
-        description: "Consensus sources: auto or comma-delimited list"
+        description: "Consensus sources: auto (HRRR,RAP,NAM,GFS,ECMWF) or comma-delimited list"
         required: false
         default: "auto"
         type: string

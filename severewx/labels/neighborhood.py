@@ -6,6 +6,7 @@ import numpy as np
 
 
 EARTH_RADIUS_KM = 6371.0
+KM_PER_MILE = 1.609344
 
 
 def haversine_km(lat1: np.ndarray, lon1: np.ndarray, lat2: np.ndarray, lon2: np.ndarray) -> np.ndarray:
@@ -35,3 +36,19 @@ def neighborhood_hits(
         report_lon[None, None, :],
     )
     return (distances <= radius_km).any(axis=-1).astype(np.int8)
+
+
+def tornado_report_25mi_hits(
+    grid_lat: np.ndarray,
+    grid_lon: np.ndarray,
+    report_lat: np.ndarray,
+    report_lon: np.ndarray,
+) -> np.ndarray:
+    """Return SPC-style tornado labels: any report within 25 statute miles."""
+    return neighborhood_hits(
+        grid_lat,
+        grid_lon,
+        report_lat,
+        report_lon,
+        radius_km=25.0 * KM_PER_MILE,
+    )

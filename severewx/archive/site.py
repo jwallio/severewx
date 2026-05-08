@@ -237,6 +237,8 @@ def _tornado_concern_product_cards(paths: DataPaths) -> list[dict[str, Any]]:
     for metadata_path in sorted(paths.outputs.rglob("tornado_concern_init_*.json"), reverse=True):
         if paths.archive in metadata_path.parents:
             continue
+        if paths.verification in metadata_path.parents:
+            continue
         try:
             if metadata_path.resolve() in bundled_metadata_paths:
                 continue
@@ -245,8 +247,14 @@ def _tornado_concern_product_cards(paths: DataPaths) -> list[dict[str, Any]]:
         metadata = _read_json(metadata_path)
         if not metadata:
             continue
+        if metadata.get("artifact_source_requested") != "consensus":
+            continue
+        if metadata.get("map_domain") != "conus":
+            continue
         image_path = metadata.get("main_image_path") or metadata.get("image_path")
         if not image_path:
+            continue
+        if not Path(str(image_path)).exists():
             continue
         cards.append(
             {
@@ -300,6 +308,8 @@ def _latest_product_run(cards: list[dict[str, Any]]) -> dict[str, Any] | None:
         existing = products_by_day.get(day)
         if existing is None or str(card["metadata"].get("generation_timestamp", "")) > str(existing["metadata"].get("generation_timestamp", "")):
             products_by_day[day] = card
+    if set(products_by_day) & {1, 2, 3} != {1, 2, 3}:
+        return None
     products = [products_by_day[day] for day in sorted(products_by_day) if day in {1, 2, 3}]
     if not products:
         return None
@@ -387,6 +397,9 @@ def _run_payload(paths: DataPaths, run: dict[str, Any]) -> dict[str, Any]:
                 "renderBasemapWarning": metadata.get("render_basemap_warning", ""),
                 "includedSources": _as_string_list(consensus_summary.get("included_sources")),
                 "excludedSources": consensus_summary.get("excluded_sources", []),
+                "backtestVersion": metadata.get("backtest_version", ""),
+                "calibrationVersion": metadata.get("calibration_version", ""),
+                "readinessStatus": metadata.get("readiness_status", metadata.get("publication_status", "")),
             }
         )
     return {
@@ -413,6 +426,27 @@ def _non_real_ingest_warning(metadata: dict[str, Any] | None) -> str | None:
     return f"Non-real forecast ingest detected: source={source}, source_mode={source_mode}, real_ingest_available={real_available}."
 
 
+def _metadata_badges(products: list[dict[str, Any]], metadata: dict[str, Any] | None) -> str:
+    included = _as_string_list((metadata or {}).get("included_sources"))
+    if not included:
+        for product in products:
+            included = _as_string_list(product.get("includedSources"))
+            if included:
+                break
+    backtest_versions = sorted({str(product.get("backtestVersion")) for product in products if product.get("backtestVersion")})
+    calibration_versions = sorted({str(product.get("calibrationVersion")) for product in products if product.get("calibrationVersion")})
+    readiness_values = sorted({str(product.get("readinessStatus")) for product in products if product.get("readinessStatus")})
+    badges = [
+        ("sources", ", ".join(included) if included else "unknown"),
+        ("backtest", ", ".join(backtest_versions) if backtest_versions else str((metadata or {}).get("backtest_version", "unversioned"))),
+        ("calibration", ", ".join(calibration_versions) if calibration_versions else str((metadata or {}).get("calibration_version", "raw"))),
+        ("readiness", ", ".join(readiness_values) if readiness_values else "unknown"),
+    ]
+    return "<div class='badge-row'>" + "".join(
+        f"<span class='meta-badge'><strong>{_escape(label)}</strong> {_escape(value)}</span>" for label, value in badges
+    ) + "</div>"
+
+
 def _append_latest_run_viewer(rows: list[str], paths: DataPaths) -> None:
     run = _latest_product_run(_tornado_concern_product_cards(paths))
     rows.append("<section class='viewer-section'>")
@@ -435,6 +469,7 @@ def _append_latest_run_viewer(rows: list[str], paths: DataPaths) -> None:
     status_text = ", ".join(status_values) if status_values else "unknown"
     ready_count = sum(1 for product in products if product["publicReady"])
     source_line = f"<p class='run-meta'>sources {_escape(source_text)}</p>" if source_text else ""
+    badge_row = _metadata_badges(products, metadata)
     warning_line = f"<p class='source-warning'>{_escape(warning)}</p>" if warning else ""
     render_warning_line = f"<p class='source-warning'>{_escape(render_warning)}</p>" if render_warning else ""
     rows.append(
@@ -445,6 +480,7 @@ def _append_latest_run_viewer(rows: list[str], paths: DataPaths) -> None:
         f"<h2>{_escape(payload['initDate'])} { _escape(payload['cycle'])}Z Risk Outlook</h2>"
         f"<p class='run-meta'>generated {_escape(payload['generatedAt'] or 'unknown')} | publication {_escape(status_text)} | public-ready {ready_count}/{len(products)}</p>"
         f"{source_line}"
+        f"{badge_row}"
         "</div>"
         "<label class='day-picker'>"
         "<span>Risk day</span>"
@@ -611,6 +647,8 @@ def build_archive_site(paths: DataPaths) -> Path:
         ".run-card{background:#fff;border:1px solid #d8e0e6;border-radius:8px;padding:18px;margin:0 0 20px 0;}"
         ".run-header{display:flex;flex-wrap:wrap;gap:12px;align-items:baseline;justify-content:space-between;margin-bottom:12px;}"
         ".run-meta{color:#4a5b6d;font-size:14px;}"
+        ".badge-row{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 0 0;}"
+        ".meta-badge{display:inline-flex;gap:5px;align-items:center;border:1px solid #cfd8df;border-radius:6px;background:#f7f9fb;color:#253446;padding:5px 8px;font-size:12px;}"
         ".info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px;}"
         ".thumb-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;}"
         ".product-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;}"

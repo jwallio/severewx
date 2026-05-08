@@ -1,0 +1,286 @@
+{
+  "manifest_id": "tornado_environment_consensus_v2_pilot",
+  "description": "Recent-case pilot for SPC-comparable Day 1-3 tornado outlook hydration and scoring before promoting cases into the locked v2 manifest.",
+  "require_case_metadata": true,
+  "required_folds": [
+    "train",
+    "tune",
+    "test"
+  ],
+  "target_product": {
+    "field": "tornado_environment_outlook_hybrid_consensus",
+    "artifact_source": "consensus",
+    "map_domain": "conus",
+    "map_style": "outlook",
+    "display_preset": "auto",
+    "lead_days": [
+      1,
+      2,
+      3
+    ],
+    "synthetic_fallback_allowed": false,
+    "default_sources": [
+      "hrrr_recent",
+      "rap_recent",
+      "nam_recent",
+      "aws_recent",
+      "ecmwf_recent"
+    ],
+    "verification_target": "tornado_reports_25mi",
+    "spc_probability_bins": [
+      0.02,
+      0.05,
+      0.1,
+      0.15,
+      0.3,
+      0.45,
+      0.6
+    ],
+    "day3_tornado_guidance": "experimental",
+    "optional_sources": [
+      "open_meteo_recent"
+    ],
+    "source_comparison_groups": {
+      "noaa_only": [
+        "hrrr_recent",
+        "rap_recent",
+        "nam_recent",
+        "aws_recent"
+      ],
+      "noaa_ecmwf": [
+        "hrrr_recent",
+        "rap_recent",
+        "nam_recent",
+        "aws_recent",
+        "ecmwf_recent"
+      ],
+      "noaa_openmeteo": [
+        "hrrr_recent",
+        "rap_recent",
+        "nam_recent",
+        "aws_recent",
+        "open_meteo_recent"
+      ],
+      "noaa_ecmwf_openmeteo": [
+        "hrrr_recent",
+        "rap_recent",
+        "nam_recent",
+        "aws_recent",
+        "ecmwf_recent",
+        "open_meteo_recent"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "case_id": "2024-03-14_00z_pilot_001",
+      "date": "2024-03-14",
+      "cycle": "00",
+      "fold": "test",
+      "region": "midwest",
+      "season": "spring",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "active_non_outbreak_severe_day"
+    },
+    {
+      "case_id": "2024-04-02_00z_pilot_002",
+      "date": "2024-04-02",
+      "cycle": "00",
+      "fold": "tune",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "southeast_qcls",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_outbreak_day"
+    },
+    {
+      "case_id": "2024-04-10_00z_pilot_003",
+      "date": "2024-04-10",
+      "cycle": "00",
+      "fold": "train",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "northwest_flow",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2024-04-26_00z_pilot_004",
+      "date": "2024-04-26",
+      "cycle": "00",
+      "fold": "train",
+      "region": "plains",
+      "season": "spring",
+      "regime": "dryline_supercell",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "mixed_hazard_day"
+    },
+    {
+      "case_id": "2024-05-06_00z_pilot_005",
+      "date": "2024-05-06",
+      "cycle": "00",
+      "fold": "test",
+      "region": "plains",
+      "season": "spring",
+      "regime": "dryline_supercell",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_outbreak_day"
+    },
+    {
+      "case_id": "2024-05-21_00z_pilot_006",
+      "date": "2024-05-21",
+      "cycle": "00",
+      "fold": "tune",
+      "region": "midwest",
+      "season": "spring",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "significant_tornado_day"
+    },
+    {
+      "case_id": "2024-05-25_00z_pilot_007",
+      "date": "2024-05-25",
+      "cycle": "00",
+      "fold": "train",
+      "region": "southern_plains",
+      "season": "spring",
+      "regime": "dryline_supercell",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_outbreak_day"
+    },
+    {
+      "case_id": "2024-05-26_00z_pilot_008",
+      "date": "2024-05-26",
+      "cycle": "00",
+      "fold": "train",
+      "region": "mid_south",
+      "season": "spring",
+      "regime": "southeast_qcls",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_outbreak_day"
+    },
+    {
+      "case_id": "2024-06-01_00z_pilot_009",
+      "date": "2024-06-01",
+      "cycle": "00",
+      "fold": "test",
+      "region": "northern_plains",
+      "season": "summer",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2024-06-15_00z_pilot_010",
+      "date": "2024-06-15",
+      "cycle": "00",
+      "fold": "tune",
+      "region": "great_lakes",
+      "season": "summer",
+      "regime": "northwest_flow",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2024-07-10_00z_pilot_011",
+      "date": "2024-07-10",
+      "cycle": "00",
+      "fold": "train",
+      "region": "plains",
+      "season": "summer",
+      "regime": "northwest_flow",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2024-08-05_00z_pilot_012",
+      "date": "2024-08-05",
+      "cycle": "00",
+      "fold": "train",
+      "region": "southeast",
+      "season": "summer",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2025-03-14_00z_pilot_013",
+      "date": "2025-03-14",
+      "cycle": "00",
+      "fold": "test",
+      "region": "southeast",
+      "season": "cool",
+      "regime": "southeast_qcls",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_outbreak_day"
+    },
+    {
+      "case_id": "2025-03-15_00z_pilot_014",
+      "date": "2025-03-15",
+      "cycle": "00",
+      "fold": "tune",
+      "region": "southeast",
+      "season": "cool",
+      "regime": "southeast_qcls",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_outbreak_day"
+    },
+    {
+      "case_id": "2025-04-02_00z_pilot_015",
+      "date": "2025-04-02",
+      "cycle": "00",
+      "fold": "train",
+      "region": "plains",
+      "season": "spring",
+      "regime": "dryline_supercell",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    }
+  ]
+}

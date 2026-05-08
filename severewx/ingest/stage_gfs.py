@@ -76,6 +76,25 @@ OPEN_METEO_HOURLY_VARIABLES = [
     "total_column_integrated_water_vapour",
 ]
 
+OPEN_METEO_SOURCE_SPECS: dict[str, dict[str, str]] = {
+    "open_meteo_recent": {
+        "endpoint": OPEN_METEO_RECENT_ENDPOINT,
+        "model": "gfs_seamless",
+        "source_model": "open_meteo_gfs",
+        "output_template": "gfs.t{cycle}z.pgrb2.0p25.f{lead_padded}.nc",
+    },
+    "ecmwf_recent": {
+        "endpoint": OPEN_METEO_RECENT_ENDPOINT,
+        "model": "ecmwf_ifs025",
+        "source_model": "ecmwf_ifs",
+        "output_template": "ecmwf_ifs.t{cycle}z.0p25.f{lead_padded}.nc",
+    },
+}
+
+SOURCE_ALIASES = {
+    "openmeteo_recent": "open_meteo_recent",
+}
+
 NOAA_GRIB_SOURCE_SPECS: dict[str, dict[str, Any]] = {
     "aws_recent": {
         "model": "gfs",
@@ -126,14 +145,22 @@ class StageTarget:
     output_path: Path
 
 
+def _normalize_source_name(source_name: str) -> str:
+    normalized = str(source_name).lower()
+    return SOURCE_ALIASES.get(normalized, normalized)
+
+
 def staged_gfs_output_path(output_root: Path | str, date: str, cycle: str, lead: int) -> Path:
     return staged_forecast_output_path(output_root, date, cycle, lead, source_name="aws_recent")
 
 
 def staged_forecast_output_path(output_root: Path | str, date: str, cycle: str, lead: int, source_name: str = "aws_recent") -> Path:
     root = Path(output_root).resolve()
-    normalized = str(source_name).lower()
-    template = NOAA_GRIB_SOURCE_SPECS.get(normalized, NOAA_GRIB_SOURCE_SPECS["aws_recent"])["output_template"]
+    normalized = _normalize_source_name(source_name)
+    if normalized in OPEN_METEO_SOURCE_SPECS:
+        template = OPEN_METEO_SOURCE_SPECS[normalized]["output_template"]
+    else:
+        template = NOAA_GRIB_SOURCE_SPECS.get(normalized, NOAA_GRIB_SOURCE_SPECS["aws_recent"])["output_template"]
     return root / date / cycle / template.format(**_format_tokens(date, cycle, lead, root))
 
 
@@ -159,9 +186,9 @@ def _format_tokens(date: str, cycle: str, lead: int, output_root: Path) -> dict[
 
 
 def _source_templates(source_name: str) -> list[str]:
-    normalized = str(source_name).lower()
-    if normalized == "open_meteo_recent":
-        return [OPEN_METEO_RECENT_ENDPOINT]
+    normalized = _normalize_source_name(source_name)
+    if normalized in OPEN_METEO_SOURCE_SPECS:
+        return [OPEN_METEO_SOURCE_SPECS[normalized]["endpoint"]]
     if normalized in NOAA_GRIB_SOURCE_SPECS:
         return list(NOAA_GRIB_SOURCE_SPECS[normalized]["templates"])
     raise ValueError(f"unsupported source name: {source_name}")
@@ -182,10 +209,10 @@ def resolve_source_names(
     source_strategy: str = "auto",
     recent_window_days: int = DEFAULT_RECENT_WINDOW_DAYS,
 ) -> list[str]:
-    normalized = str(source_strategy).lower()
+    normalized = _normalize_source_name(source_strategy)
     if normalized == "auto":
         return _auto_source_names(date, recent_window_days=recent_window_days)
-    if normalized in {*NOAA_GRIB_SOURCE_SPECS, "open_meteo_recent"}:
+    if normalized in {*NOAA_GRIB_SOURCE_SPECS, *OPEN_METEO_SOURCE_SPECS}:
         return [normalized]
     raise ValueError(f"unsupported source strategy: {source_strategy}")
 
@@ -208,8 +235,8 @@ def build_source_attempts(
             attempts.append({"source_name": "custom_url_templates", "url": template.format(**tokens)})
         return attempts
     for source_name in resolve_source_names(date, source_strategy=source_strategy, recent_window_days=recent_window_days):
-        if source_name == "open_meteo_recent":
-            attempts.append({"source_name": source_name, "url": OPEN_METEO_RECENT_ENDPOINT})
+        if source_name in OPEN_METEO_SOURCE_SPECS:
+            attempts.append({"source_name": source_name, "url": OPEN_METEO_SOURCE_SPECS[source_name]["endpoint"]})
             continue
         for template in _source_templates(source_name):
             attempts.append({"source_name": source_name, "url": template.format(**tokens)})
@@ -250,10 +277,21 @@ def iter_stage_targets(
     return targets
 
 
+def _representative_valid_date_targets(targets: list[StageTarget]) -> list[StageTarget]:
+    selected: dict[str, StageTarget] = {}
+    for target in targets:
+        valid_time = pd.Timestamp(cycle_datetime(target.date, target.cycle) + pd.Timedelta(hours=int(target.lead)), tz=UTC)
+        valid_date = valid_time.date().isoformat()
+        selected.setdefault(valid_date, target)
+    return list(selected.values())
+
+
 def _stage_output_source_name(source_strategy: str, url_templates: list[str] | None = None) -> str:
-    normalized = str(source_strategy).lower()
+    normalized = _normalize_source_name(source_strategy)
     if url_templates or normalized in {"auto", "open_meteo_recent", "ncei_historical"}:
         return "aws_recent"
+    if normalized in OPEN_METEO_SOURCE_SPECS:
+        return normalized
     if normalized in NOAA_GRIB_SOURCE_SPECS:
         return normalized
     return "aws_recent"
@@ -358,11 +396,11 @@ def _open_meteo_scalar(hourly: dict[str, Any], key: str, index: int) -> float:
     return float(value)
 
 
-def _open_meteo_params(valid_date: str, chunk_pairs: list[tuple[float, float]]) -> list[tuple[str, Any]]:
+def _open_meteo_params(valid_date: str, chunk_pairs: list[tuple[float, float]], *, model: str) -> list[tuple[str, Any]]:
     params: list[tuple[str, Any]] = [
         ("start_date", valid_date),
         ("end_date", valid_date),
-        ("models", "gfs_seamless"),
+        ("models", model),
         ("timezone", "GMT"),
     ]
     for lat, lon in chunk_pairs:
@@ -385,6 +423,7 @@ def _stage_open_meteo_target(
     session: requests.Session,
     target: StageTarget,
     settings: AppSettings,
+    source_name: str,
     timeout: int,
     retries: int,
     backoff_seconds: int,
@@ -398,13 +437,14 @@ def _stage_open_meteo_target(
     time_key = valid_time.strftime("%Y-%m-%dT%H:00")
     target_output = target.output_path.with_suffix(".nc")
     location_records: dict[tuple[float, float], dict[str, float]] = {}
-    source_url = OPEN_METEO_RECENT_ENDPOINT
+    source_spec = OPEN_METEO_SOURCE_SPECS[_normalize_source_name(source_name)]
+    source_url = source_spec["endpoint"]
     chunk_size = int(settings.get("ingest.open_meteo_recent.chunk_size", OPEN_METEO_CHUNK_SIZE))
     pause_seconds = float(settings.get("ingest.open_meteo_recent.pause_seconds", 0.2))
 
     for chunk_start in range(0, len(points), chunk_size):
         chunk_pairs = points[chunk_start : chunk_start + chunk_size]
-        params = _open_meteo_params(valid_time.date().isoformat(), chunk_pairs)
+        params = _open_meteo_params(valid_time.date().isoformat(), chunk_pairs, model=source_spec["model"])
         for attempt in range(1, retries + 1):
             try:
                 response = session.get(source_url, params=params, timeout=timeout)
@@ -509,6 +549,9 @@ def stage_historical_gfs(
     output_source_name = _stage_output_source_name(source_strategy, url_templates=url_templates)
     targets = iter_stage_targets(start, end, cycles, leads, stage_root, source_name=output_source_name)
     source_names = ["custom_url_templates"] if url_templates else resolve_source_names(start, source_strategy=source_strategy, recent_window_days=recent_window_days)
+    if source_names and all(source_name in OPEN_METEO_SOURCE_SPECS for source_name in source_names):
+        if bool(settings.get("ingest.open_meteo_recent.representative_leads_only", True)):
+            targets = _representative_valid_date_targets(targets)
     report: dict[str, Any] = {
         "source_strategy": "custom_url_templates" if url_templates else source_strategy,
         "output_source_name": output_source_name,
@@ -564,11 +607,12 @@ def stage_historical_gfs(
             source_name = str(attempt["source_name"])
             url = str(attempt["url"])
             try:
-                if source_name == "open_meteo_recent":
+                if source_name in OPEN_METEO_SOURCE_SPECS:
                     download = _stage_open_meteo_target(
                         client,
                         target,
                         settings,
+                        source_name,
                         timeout=timeout,
                         retries=retries,
                         backoff_seconds=backoff_seconds,

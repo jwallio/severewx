@@ -1,0 +1,3582 @@
+{
+  "manifest_id": "tornado_environment_consensus_v2",
+  "description": "Locked Day 1-3 CONUS tornado outlook evaluation set for SPC-comparable scoring. Cases are deterministic placeholders until hydrated with archived public NOAA/SPC data.",
+  "require_case_metadata": true,
+  "required_folds": [
+    "train",
+    "tune",
+    "test"
+  ],
+  "minimum_case_counts": {
+    "tornado_relevant": 100,
+    "hard_negative": 100,
+    "null": 50
+  },
+  "target_product": {
+    "field": "tornado_environment_outlook_hybrid_consensus",
+    "artifact_source": "consensus",
+    "map_domain": "conus",
+    "map_style": "outlook",
+    "display_preset": "auto",
+    "lead_days": [
+      1,
+      2,
+      3
+    ],
+    "synthetic_fallback_allowed": false,
+    "default_sources": [
+      "hrrr_recent",
+      "rap_recent",
+      "nam_recent",
+      "aws_recent",
+      "ecmwf_recent"
+    ],
+    "verification_target": "tornado_reports_25mi",
+    "spc_probability_bins": [
+      0.02,
+      0.05,
+      0.1,
+      0.15,
+      0.3,
+      0.45,
+      0.6
+    ],
+    "day3_tornado_guidance": "experimental",
+    "optional_sources": [
+      "open_meteo_recent"
+    ],
+    "source_comparison_groups": {
+      "noaa_only": [
+        "hrrr_recent",
+        "rap_recent",
+        "nam_recent",
+        "aws_recent"
+      ],
+      "noaa_ecmwf": [
+        "hrrr_recent",
+        "rap_recent",
+        "nam_recent",
+        "aws_recent",
+        "ecmwf_recent"
+      ],
+      "noaa_openmeteo": [
+        "hrrr_recent",
+        "rap_recent",
+        "nam_recent",
+        "aws_recent",
+        "open_meteo_recent"
+      ],
+      "noaa_ecmwf_openmeteo": [
+        "hrrr_recent",
+        "rap_recent",
+        "nam_recent",
+        "aws_recent",
+        "ecmwf_recent",
+        "open_meteo_recent"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "case_id": "2024-03-14_00z_promoted_tornado_event_001",
+      "date": "2024-03-14",
+      "cycle": "00",
+      "fold": "test",
+      "region": "midwest",
+      "season": "spring",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "tornado_relevant",
+        "event",
+        "pilot_verified"
+      ],
+      "expected_signal": "active_non_outbreak_severe_day"
+    },
+    {
+      "case_id": "2016-03-04_12z_tornado_event_002",
+      "date": "2016-03-04",
+      "cycle": "12",
+      "fold": "tune",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "southeast_qcls",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-03-07_06z_tornado_event_003",
+      "date": "2016-03-07",
+      "cycle": "06",
+      "fold": "train",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-03-10_18z_tornado_event_004",
+      "date": "2016-03-10",
+      "cycle": "18",
+      "fold": "train",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-03-13_00z_tornado_event_005",
+      "date": "2016-03-13",
+      "cycle": "00",
+      "fold": "train",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "northwest_flow",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-03-16_12z_tornado_event_006",
+      "date": "2016-03-16",
+      "cycle": "12",
+      "fold": "test",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "dryline_supercell",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-03-19_06z_tornado_event_007",
+      "date": "2016-03-19",
+      "cycle": "06",
+      "fold": "tune",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "southeast_qcls",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-03-22_18z_tornado_event_008",
+      "date": "2016-03-22",
+      "cycle": "18",
+      "fold": "train",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-03-25_00z_tornado_event_009",
+      "date": "2016-03-25",
+      "cycle": "00",
+      "fold": "train",
+      "region": "plains",
+      "season": "cool",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-03-28_12z_tornado_event_010",
+      "date": "2016-03-28",
+      "cycle": "12",
+      "fold": "train",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "northwest_flow",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-03-31_06z_tornado_event_011",
+      "date": "2016-03-31",
+      "cycle": "06",
+      "fold": "test",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "dryline_supercell",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-04-03_18z_tornado_event_012",
+      "date": "2016-04-03",
+      "cycle": "18",
+      "fold": "tune",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "southeast_qcls",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-04-06_00z_tornado_event_013",
+      "date": "2016-04-06",
+      "cycle": "00",
+      "fold": "train",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-04-09_12z_tornado_event_014",
+      "date": "2016-04-09",
+      "cycle": "12",
+      "fold": "train",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-04-12_06z_tornado_event_015",
+      "date": "2016-04-12",
+      "cycle": "06",
+      "fold": "train",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "northwest_flow",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-04-15_18z_tornado_event_016",
+      "date": "2016-04-15",
+      "cycle": "18",
+      "fold": "test",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "dryline_supercell",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-04-18_00z_tornado_event_017",
+      "date": "2016-04-18",
+      "cycle": "00",
+      "fold": "tune",
+      "region": "plains",
+      "season": "cool",
+      "regime": "southeast_qcls",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-04-21_12z_tornado_event_018",
+      "date": "2016-04-21",
+      "cycle": "12",
+      "fold": "train",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-04-24_06z_tornado_event_019",
+      "date": "2016-04-24",
+      "cycle": "06",
+      "fold": "train",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-04-27_18z_tornado_event_020",
+      "date": "2016-04-27",
+      "cycle": "18",
+      "fold": "train",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "northwest_flow",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-04-30_00z_tornado_event_021",
+      "date": "2016-04-30",
+      "cycle": "00",
+      "fold": "test",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "dryline_supercell",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-05-03_12z_tornado_event_022",
+      "date": "2016-05-03",
+      "cycle": "12",
+      "fold": "tune",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "southeast_qcls",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-05-06_06z_tornado_event_023",
+      "date": "2016-05-06",
+      "cycle": "06",
+      "fold": "train",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-05-09_18z_tornado_event_024",
+      "date": "2016-05-09",
+      "cycle": "18",
+      "fold": "train",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-05-12_00z_tornado_event_025",
+      "date": "2016-05-12",
+      "cycle": "00",
+      "fold": "train",
+      "region": "plains",
+      "season": "cool",
+      "regime": "northwest_flow",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-05-15_12z_tornado_event_026",
+      "date": "2016-05-15",
+      "cycle": "12",
+      "fold": "test",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "dryline_supercell",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-05-18_06z_tornado_event_027",
+      "date": "2016-05-18",
+      "cycle": "06",
+      "fold": "tune",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "southeast_qcls",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-05-21_18z_tornado_event_028",
+      "date": "2016-05-21",
+      "cycle": "18",
+      "fold": "train",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-05-24_00z_tornado_event_029",
+      "date": "2016-05-24",
+      "cycle": "00",
+      "fold": "train",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-05-27_12z_tornado_event_030",
+      "date": "2016-05-27",
+      "cycle": "12",
+      "fold": "train",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "northwest_flow",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-05-30_06z_tornado_event_031",
+      "date": "2016-05-30",
+      "cycle": "06",
+      "fold": "test",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "dryline_supercell",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-06-02_18z_tornado_event_032",
+      "date": "2016-06-02",
+      "cycle": "18",
+      "fold": "tune",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "southeast_qcls",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-06-05_00z_tornado_event_033",
+      "date": "2016-06-05",
+      "cycle": "00",
+      "fold": "train",
+      "region": "plains",
+      "season": "cool",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-06-08_12z_tornado_event_034",
+      "date": "2016-06-08",
+      "cycle": "12",
+      "fold": "train",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-06-11_06z_tornado_event_035",
+      "date": "2016-06-11",
+      "cycle": "06",
+      "fold": "train",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "northwest_flow",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-06-14_18z_tornado_event_036",
+      "date": "2016-06-14",
+      "cycle": "18",
+      "fold": "test",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "dryline_supercell",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-06-17_00z_tornado_event_037",
+      "date": "2016-06-17",
+      "cycle": "00",
+      "fold": "tune",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "southeast_qcls",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-06-20_12z_tornado_event_038",
+      "date": "2016-06-20",
+      "cycle": "12",
+      "fold": "train",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-06-23_06z_tornado_event_039",
+      "date": "2016-06-23",
+      "cycle": "06",
+      "fold": "train",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-06-26_18z_tornado_event_040",
+      "date": "2016-06-26",
+      "cycle": "18",
+      "fold": "train",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "northwest_flow",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-06-29_00z_tornado_event_041",
+      "date": "2016-06-29",
+      "cycle": "00",
+      "fold": "test",
+      "region": "plains",
+      "season": "cool",
+      "regime": "dryline_supercell",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-07-02_12z_tornado_event_042",
+      "date": "2016-07-02",
+      "cycle": "12",
+      "fold": "tune",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "southeast_qcls",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-07-05_06z_tornado_event_043",
+      "date": "2016-07-05",
+      "cycle": "06",
+      "fold": "train",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-07-08_18z_tornado_event_044",
+      "date": "2016-07-08",
+      "cycle": "18",
+      "fold": "train",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-07-11_00z_tornado_event_045",
+      "date": "2016-07-11",
+      "cycle": "00",
+      "fold": "train",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "northwest_flow",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-07-14_12z_tornado_event_046",
+      "date": "2016-07-14",
+      "cycle": "12",
+      "fold": "test",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "dryline_supercell",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-07-17_06z_tornado_event_047",
+      "date": "2016-07-17",
+      "cycle": "06",
+      "fold": "tune",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "southeast_qcls",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-07-20_18z_tornado_event_048",
+      "date": "2016-07-20",
+      "cycle": "18",
+      "fold": "train",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-07-23_00z_tornado_event_049",
+      "date": "2016-07-23",
+      "cycle": "00",
+      "fold": "train",
+      "region": "plains",
+      "season": "cool",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-07-26_12z_tornado_event_050",
+      "date": "2016-07-26",
+      "cycle": "12",
+      "fold": "train",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "northwest_flow",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-07-29_06z_tornado_event_051",
+      "date": "2016-07-29",
+      "cycle": "06",
+      "fold": "test",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "dryline_supercell",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-08-01_18z_tornado_event_052",
+      "date": "2016-08-01",
+      "cycle": "18",
+      "fold": "tune",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "southeast_qcls",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-08-04_00z_tornado_event_053",
+      "date": "2016-08-04",
+      "cycle": "00",
+      "fold": "train",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-08-07_12z_tornado_event_054",
+      "date": "2016-08-07",
+      "cycle": "12",
+      "fold": "train",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-08-10_06z_tornado_event_055",
+      "date": "2016-08-10",
+      "cycle": "06",
+      "fold": "train",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "northwest_flow",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-08-13_18z_tornado_event_056",
+      "date": "2016-08-13",
+      "cycle": "18",
+      "fold": "test",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "dryline_supercell",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-08-16_00z_tornado_event_057",
+      "date": "2016-08-16",
+      "cycle": "00",
+      "fold": "tune",
+      "region": "plains",
+      "season": "cool",
+      "regime": "southeast_qcls",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-08-19_12z_tornado_event_058",
+      "date": "2016-08-19",
+      "cycle": "12",
+      "fold": "train",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-08-22_06z_tornado_event_059",
+      "date": "2016-08-22",
+      "cycle": "06",
+      "fold": "train",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-08-25_18z_tornado_event_060",
+      "date": "2016-08-25",
+      "cycle": "18",
+      "fold": "train",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "northwest_flow",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-08-28_00z_tornado_event_061",
+      "date": "2016-08-28",
+      "cycle": "00",
+      "fold": "test",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "dryline_supercell",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-08-31_12z_tornado_event_062",
+      "date": "2016-08-31",
+      "cycle": "12",
+      "fold": "tune",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "southeast_qcls",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-09-03_06z_tornado_event_063",
+      "date": "2016-09-03",
+      "cycle": "06",
+      "fold": "train",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-09-06_18z_tornado_event_064",
+      "date": "2016-09-06",
+      "cycle": "18",
+      "fold": "train",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-09-09_00z_tornado_event_065",
+      "date": "2016-09-09",
+      "cycle": "00",
+      "fold": "train",
+      "region": "plains",
+      "season": "cool",
+      "regime": "northwest_flow",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-09-12_12z_tornado_event_066",
+      "date": "2016-09-12",
+      "cycle": "12",
+      "fold": "test",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "dryline_supercell",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-09-15_06z_tornado_event_067",
+      "date": "2016-09-15",
+      "cycle": "06",
+      "fold": "tune",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "southeast_qcls",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-09-18_18z_tornado_event_068",
+      "date": "2016-09-18",
+      "cycle": "18",
+      "fold": "train",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-09-21_00z_tornado_event_069",
+      "date": "2016-09-21",
+      "cycle": "00",
+      "fold": "train",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-09-24_12z_tornado_event_070",
+      "date": "2016-09-24",
+      "cycle": "12",
+      "fold": "train",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "northwest_flow",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-09-27_06z_tornado_event_071",
+      "date": "2016-09-27",
+      "cycle": "06",
+      "fold": "test",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "dryline_supercell",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-09-30_18z_tornado_event_072",
+      "date": "2016-09-30",
+      "cycle": "18",
+      "fold": "tune",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "southeast_qcls",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-10-03_00z_tornado_event_073",
+      "date": "2016-10-03",
+      "cycle": "00",
+      "fold": "train",
+      "region": "plains",
+      "season": "cool",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-10-06_12z_tornado_event_074",
+      "date": "2016-10-06",
+      "cycle": "12",
+      "fold": "train",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-10-09_06z_tornado_event_075",
+      "date": "2016-10-09",
+      "cycle": "06",
+      "fold": "train",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "northwest_flow",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-10-12_18z_tornado_event_076",
+      "date": "2016-10-12",
+      "cycle": "18",
+      "fold": "test",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "dryline_supercell",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-10-15_00z_tornado_event_077",
+      "date": "2016-10-15",
+      "cycle": "00",
+      "fold": "tune",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "southeast_qcls",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-10-18_12z_tornado_event_078",
+      "date": "2016-10-18",
+      "cycle": "12",
+      "fold": "train",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-10-21_06z_tornado_event_079",
+      "date": "2016-10-21",
+      "cycle": "06",
+      "fold": "train",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-10-24_18z_tornado_event_080",
+      "date": "2016-10-24",
+      "cycle": "18",
+      "fold": "train",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "northwest_flow",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-10-27_00z_tornado_event_081",
+      "date": "2016-10-27",
+      "cycle": "00",
+      "fold": "test",
+      "region": "plains",
+      "season": "cool",
+      "regime": "dryline_supercell",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-10-30_12z_tornado_event_082",
+      "date": "2016-10-30",
+      "cycle": "12",
+      "fold": "tune",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "southeast_qcls",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-11-02_06z_tornado_event_083",
+      "date": "2016-11-02",
+      "cycle": "06",
+      "fold": "train",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-11-05_18z_tornado_event_084",
+      "date": "2016-11-05",
+      "cycle": "18",
+      "fold": "train",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-11-08_00z_tornado_event_085",
+      "date": "2016-11-08",
+      "cycle": "00",
+      "fold": "train",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "northwest_flow",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-11-11_12z_tornado_event_086",
+      "date": "2016-11-11",
+      "cycle": "12",
+      "fold": "test",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "dryline_supercell",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-11-14_06z_tornado_event_087",
+      "date": "2016-11-14",
+      "cycle": "06",
+      "fold": "tune",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "southeast_qcls",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-11-17_18z_tornado_event_088",
+      "date": "2016-11-17",
+      "cycle": "18",
+      "fold": "train",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-11-20_00z_tornado_event_089",
+      "date": "2016-11-20",
+      "cycle": "00",
+      "fold": "train",
+      "region": "plains",
+      "season": "cool",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-11-23_12z_tornado_event_090",
+      "date": "2016-11-23",
+      "cycle": "12",
+      "fold": "train",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "northwest_flow",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-11-26_06z_tornado_event_091",
+      "date": "2016-11-26",
+      "cycle": "06",
+      "fold": "test",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "dryline_supercell",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-11-29_18z_tornado_event_092",
+      "date": "2016-11-29",
+      "cycle": "18",
+      "fold": "tune",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "southeast_qcls",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-12-02_00z_tornado_event_093",
+      "date": "2016-12-02",
+      "cycle": "00",
+      "fold": "train",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-12-05_12z_tornado_event_094",
+      "date": "2016-12-05",
+      "cycle": "12",
+      "fold": "train",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-12-08_06z_tornado_event_095",
+      "date": "2016-12-08",
+      "cycle": "06",
+      "fold": "train",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "northwest_flow",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-12-11_18z_tornado_event_096",
+      "date": "2016-12-11",
+      "cycle": "18",
+      "fold": "test",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "dryline_supercell",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-12-14_00z_tornado_event_097",
+      "date": "2016-12-14",
+      "cycle": "00",
+      "fold": "tune",
+      "region": "plains",
+      "season": "cool",
+      "regime": "southeast_qcls",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-12-17_12z_tornado_event_098",
+      "date": "2016-12-17",
+      "cycle": "12",
+      "fold": "train",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-12-20_06z_tornado_event_099",
+      "date": "2016-12-20",
+      "cycle": "06",
+      "fold": "train",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2016-12-23_18z_tornado_event_100",
+      "date": "2016-12-23",
+      "cycle": "18",
+      "fold": "train",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "northwest_flow",
+      "tags": [
+        "tornado_relevant",
+        "event"
+      ],
+      "expected_signal": "tornado_relevant_day"
+    },
+    {
+      "case_id": "2018-01-02_00z_hard_negative_001",
+      "date": "2018-01-02",
+      "cycle": "00",
+      "fold": "test",
+      "region": "plains",
+      "season": "cool",
+      "regime": "dryline_supercell",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-01-05_12z_hard_negative_002",
+      "date": "2018-01-05",
+      "cycle": "12",
+      "fold": "tune",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "southeast_qcls",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-01-08_06z_hard_negative_003",
+      "date": "2018-01-08",
+      "cycle": "06",
+      "fold": "train",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-01-11_18z_hard_negative_004",
+      "date": "2018-01-11",
+      "cycle": "18",
+      "fold": "train",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-01-14_00z_hard_negative_005",
+      "date": "2018-01-14",
+      "cycle": "00",
+      "fold": "train",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "northwest_flow",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-01-17_12z_hard_negative_006",
+      "date": "2018-01-17",
+      "cycle": "12",
+      "fold": "test",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "dryline_supercell",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-01-20_06z_hard_negative_007",
+      "date": "2018-01-20",
+      "cycle": "06",
+      "fold": "tune",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "southeast_qcls",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-01-23_18z_hard_negative_008",
+      "date": "2018-01-23",
+      "cycle": "18",
+      "fold": "train",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-01-26_00z_hard_negative_009",
+      "date": "2018-01-26",
+      "cycle": "00",
+      "fold": "train",
+      "region": "plains",
+      "season": "cool",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-01-29_12z_hard_negative_010",
+      "date": "2018-01-29",
+      "cycle": "12",
+      "fold": "train",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "northwest_flow",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-02-01_06z_hard_negative_011",
+      "date": "2018-02-01",
+      "cycle": "06",
+      "fold": "test",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "dryline_supercell",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-02-04_18z_hard_negative_012",
+      "date": "2018-02-04",
+      "cycle": "18",
+      "fold": "tune",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "southeast_qcls",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-02-07_00z_hard_negative_013",
+      "date": "2018-02-07",
+      "cycle": "00",
+      "fold": "train",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-02-10_12z_hard_negative_014",
+      "date": "2018-02-10",
+      "cycle": "12",
+      "fold": "train",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-02-13_06z_hard_negative_015",
+      "date": "2018-02-13",
+      "cycle": "06",
+      "fold": "train",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "northwest_flow",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-02-16_18z_hard_negative_016",
+      "date": "2018-02-16",
+      "cycle": "18",
+      "fold": "test",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "dryline_supercell",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-02-19_00z_hard_negative_017",
+      "date": "2018-02-19",
+      "cycle": "00",
+      "fold": "tune",
+      "region": "plains",
+      "season": "cool",
+      "regime": "southeast_qcls",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-02-22_12z_hard_negative_018",
+      "date": "2018-02-22",
+      "cycle": "12",
+      "fold": "train",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-02-25_06z_hard_negative_019",
+      "date": "2018-02-25",
+      "cycle": "06",
+      "fold": "train",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-02-28_18z_hard_negative_020",
+      "date": "2018-02-28",
+      "cycle": "18",
+      "fold": "train",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "northwest_flow",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-03-03_00z_hard_negative_021",
+      "date": "2018-03-03",
+      "cycle": "00",
+      "fold": "test",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "dryline_supercell",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-03-06_12z_hard_negative_022",
+      "date": "2018-03-06",
+      "cycle": "12",
+      "fold": "tune",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "southeast_qcls",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-03-09_06z_hard_negative_023",
+      "date": "2018-03-09",
+      "cycle": "06",
+      "fold": "train",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-03-12_18z_hard_negative_024",
+      "date": "2018-03-12",
+      "cycle": "18",
+      "fold": "train",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-03-15_00z_hard_negative_025",
+      "date": "2018-03-15",
+      "cycle": "00",
+      "fold": "train",
+      "region": "plains",
+      "season": "cool",
+      "regime": "northwest_flow",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-03-18_12z_hard_negative_026",
+      "date": "2018-03-18",
+      "cycle": "12",
+      "fold": "test",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "dryline_supercell",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-03-21_06z_hard_negative_027",
+      "date": "2018-03-21",
+      "cycle": "06",
+      "fold": "tune",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "southeast_qcls",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-03-24_18z_hard_negative_028",
+      "date": "2018-03-24",
+      "cycle": "18",
+      "fold": "train",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-03-27_00z_hard_negative_029",
+      "date": "2018-03-27",
+      "cycle": "00",
+      "fold": "train",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-03-30_12z_hard_negative_030",
+      "date": "2018-03-30",
+      "cycle": "12",
+      "fold": "train",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "northwest_flow",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-04-02_06z_hard_negative_031",
+      "date": "2018-04-02",
+      "cycle": "06",
+      "fold": "test",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "dryline_supercell",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-04-05_18z_hard_negative_032",
+      "date": "2018-04-05",
+      "cycle": "18",
+      "fold": "tune",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "southeast_qcls",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-04-08_00z_hard_negative_033",
+      "date": "2018-04-08",
+      "cycle": "00",
+      "fold": "train",
+      "region": "plains",
+      "season": "cool",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-04-11_12z_hard_negative_034",
+      "date": "2018-04-11",
+      "cycle": "12",
+      "fold": "train",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-04-14_06z_hard_negative_035",
+      "date": "2018-04-14",
+      "cycle": "06",
+      "fold": "train",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "northwest_flow",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-04-17_18z_hard_negative_036",
+      "date": "2018-04-17",
+      "cycle": "18",
+      "fold": "test",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "dryline_supercell",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-04-20_00z_hard_negative_037",
+      "date": "2018-04-20",
+      "cycle": "00",
+      "fold": "tune",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "southeast_qcls",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-04-23_12z_hard_negative_038",
+      "date": "2018-04-23",
+      "cycle": "12",
+      "fold": "train",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-04-26_06z_hard_negative_039",
+      "date": "2018-04-26",
+      "cycle": "06",
+      "fold": "train",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-04-29_18z_hard_negative_040",
+      "date": "2018-04-29",
+      "cycle": "18",
+      "fold": "train",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "northwest_flow",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-05-02_00z_hard_negative_041",
+      "date": "2018-05-02",
+      "cycle": "00",
+      "fold": "test",
+      "region": "plains",
+      "season": "cool",
+      "regime": "dryline_supercell",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-05-05_12z_hard_negative_042",
+      "date": "2018-05-05",
+      "cycle": "12",
+      "fold": "tune",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "southeast_qcls",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-05-08_06z_hard_negative_043",
+      "date": "2018-05-08",
+      "cycle": "06",
+      "fold": "train",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-05-11_18z_hard_negative_044",
+      "date": "2018-05-11",
+      "cycle": "18",
+      "fold": "train",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-05-14_00z_hard_negative_045",
+      "date": "2018-05-14",
+      "cycle": "00",
+      "fold": "train",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "northwest_flow",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-05-17_12z_hard_negative_046",
+      "date": "2018-05-17",
+      "cycle": "12",
+      "fold": "test",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "dryline_supercell",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-05-20_06z_hard_negative_047",
+      "date": "2018-05-20",
+      "cycle": "06",
+      "fold": "tune",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "southeast_qcls",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-05-23_18z_hard_negative_048",
+      "date": "2018-05-23",
+      "cycle": "18",
+      "fold": "train",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-05-26_00z_hard_negative_049",
+      "date": "2018-05-26",
+      "cycle": "00",
+      "fold": "train",
+      "region": "plains",
+      "season": "cool",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-05-29_12z_hard_negative_050",
+      "date": "2018-05-29",
+      "cycle": "12",
+      "fold": "train",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "northwest_flow",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-06-01_06z_hard_negative_051",
+      "date": "2018-06-01",
+      "cycle": "06",
+      "fold": "test",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "dryline_supercell",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-06-04_18z_hard_negative_052",
+      "date": "2018-06-04",
+      "cycle": "18",
+      "fold": "tune",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "southeast_qcls",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-06-07_00z_hard_negative_053",
+      "date": "2018-06-07",
+      "cycle": "00",
+      "fold": "train",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-06-10_12z_hard_negative_054",
+      "date": "2018-06-10",
+      "cycle": "12",
+      "fold": "train",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-06-13_06z_hard_negative_055",
+      "date": "2018-06-13",
+      "cycle": "06",
+      "fold": "train",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "northwest_flow",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-06-16_18z_hard_negative_056",
+      "date": "2018-06-16",
+      "cycle": "18",
+      "fold": "test",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "dryline_supercell",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-06-19_00z_hard_negative_057",
+      "date": "2018-06-19",
+      "cycle": "00",
+      "fold": "tune",
+      "region": "plains",
+      "season": "cool",
+      "regime": "southeast_qcls",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-06-22_12z_hard_negative_058",
+      "date": "2018-06-22",
+      "cycle": "12",
+      "fold": "train",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-06-25_06z_hard_negative_059",
+      "date": "2018-06-25",
+      "cycle": "06",
+      "fold": "train",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-06-28_18z_hard_negative_060",
+      "date": "2018-06-28",
+      "cycle": "18",
+      "fold": "train",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "northwest_flow",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-07-01_00z_hard_negative_061",
+      "date": "2018-07-01",
+      "cycle": "00",
+      "fold": "test",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "dryline_supercell",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-07-04_12z_hard_negative_062",
+      "date": "2018-07-04",
+      "cycle": "12",
+      "fold": "tune",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "southeast_qcls",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-07-07_06z_hard_negative_063",
+      "date": "2018-07-07",
+      "cycle": "06",
+      "fold": "train",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-07-10_18z_hard_negative_064",
+      "date": "2018-07-10",
+      "cycle": "18",
+      "fold": "train",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-07-13_00z_hard_negative_065",
+      "date": "2018-07-13",
+      "cycle": "00",
+      "fold": "train",
+      "region": "plains",
+      "season": "cool",
+      "regime": "northwest_flow",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-07-16_12z_hard_negative_066",
+      "date": "2018-07-16",
+      "cycle": "12",
+      "fold": "test",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "dryline_supercell",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-07-19_06z_hard_negative_067",
+      "date": "2018-07-19",
+      "cycle": "06",
+      "fold": "tune",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "southeast_qcls",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-07-22_18z_hard_negative_068",
+      "date": "2018-07-22",
+      "cycle": "18",
+      "fold": "train",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-07-25_00z_hard_negative_069",
+      "date": "2018-07-25",
+      "cycle": "00",
+      "fold": "train",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-07-28_12z_hard_negative_070",
+      "date": "2018-07-28",
+      "cycle": "12",
+      "fold": "train",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "northwest_flow",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-07-31_06z_hard_negative_071",
+      "date": "2018-07-31",
+      "cycle": "06",
+      "fold": "test",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "dryline_supercell",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-08-03_18z_hard_negative_072",
+      "date": "2018-08-03",
+      "cycle": "18",
+      "fold": "tune",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "southeast_qcls",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-08-06_00z_hard_negative_073",
+      "date": "2018-08-06",
+      "cycle": "00",
+      "fold": "train",
+      "region": "plains",
+      "season": "cool",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-08-09_12z_hard_negative_074",
+      "date": "2018-08-09",
+      "cycle": "12",
+      "fold": "train",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-08-12_06z_hard_negative_075",
+      "date": "2018-08-12",
+      "cycle": "06",
+      "fold": "train",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "northwest_flow",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-08-15_18z_hard_negative_076",
+      "date": "2018-08-15",
+      "cycle": "18",
+      "fold": "test",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "dryline_supercell",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-08-18_00z_hard_negative_077",
+      "date": "2018-08-18",
+      "cycle": "00",
+      "fold": "tune",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "southeast_qcls",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-08-21_12z_hard_negative_078",
+      "date": "2018-08-21",
+      "cycle": "12",
+      "fold": "train",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-08-24_06z_hard_negative_079",
+      "date": "2018-08-24",
+      "cycle": "06",
+      "fold": "train",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-08-27_18z_hard_negative_080",
+      "date": "2018-08-27",
+      "cycle": "18",
+      "fold": "train",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "northwest_flow",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-08-30_00z_hard_negative_081",
+      "date": "2018-08-30",
+      "cycle": "00",
+      "fold": "test",
+      "region": "plains",
+      "season": "cool",
+      "regime": "dryline_supercell",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-09-02_12z_hard_negative_082",
+      "date": "2018-09-02",
+      "cycle": "12",
+      "fold": "tune",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "southeast_qcls",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-09-05_06z_hard_negative_083",
+      "date": "2018-09-05",
+      "cycle": "06",
+      "fold": "train",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-09-08_18z_hard_negative_084",
+      "date": "2018-09-08",
+      "cycle": "18",
+      "fold": "train",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-09-11_00z_hard_negative_085",
+      "date": "2018-09-11",
+      "cycle": "00",
+      "fold": "train",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "northwest_flow",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-09-14_12z_hard_negative_086",
+      "date": "2018-09-14",
+      "cycle": "12",
+      "fold": "test",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "dryline_supercell",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-09-17_06z_hard_negative_087",
+      "date": "2018-09-17",
+      "cycle": "06",
+      "fold": "tune",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "southeast_qcls",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-09-20_18z_hard_negative_088",
+      "date": "2018-09-20",
+      "cycle": "18",
+      "fold": "train",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-09-23_00z_hard_negative_089",
+      "date": "2018-09-23",
+      "cycle": "00",
+      "fold": "train",
+      "region": "plains",
+      "season": "cool",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-09-26_12z_hard_negative_090",
+      "date": "2018-09-26",
+      "cycle": "12",
+      "fold": "train",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "northwest_flow",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-09-29_06z_hard_negative_091",
+      "date": "2018-09-29",
+      "cycle": "06",
+      "fold": "test",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "dryline_supercell",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-10-02_18z_hard_negative_092",
+      "date": "2018-10-02",
+      "cycle": "18",
+      "fold": "tune",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "southeast_qcls",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-10-05_00z_hard_negative_093",
+      "date": "2018-10-05",
+      "cycle": "00",
+      "fold": "train",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-10-08_12z_hard_negative_094",
+      "date": "2018-10-08",
+      "cycle": "12",
+      "fold": "train",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-10-11_06z_hard_negative_095",
+      "date": "2018-10-11",
+      "cycle": "06",
+      "fold": "train",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "northwest_flow",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-10-14_18z_hard_negative_096",
+      "date": "2018-10-14",
+      "cycle": "18",
+      "fold": "test",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "dryline_supercell",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-10-17_00z_hard_negative_097",
+      "date": "2018-10-17",
+      "cycle": "00",
+      "fold": "tune",
+      "region": "plains",
+      "season": "cool",
+      "regime": "southeast_qcls",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-10-20_12z_hard_negative_098",
+      "date": "2018-10-20",
+      "cycle": "12",
+      "fold": "train",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-10-23_06z_hard_negative_099",
+      "date": "2018-10-23",
+      "cycle": "06",
+      "fold": "train",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2018-10-26_18z_hard_negative_100",
+      "date": "2018-10-26",
+      "cycle": "18",
+      "fold": "train",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "northwest_flow",
+      "tags": [
+        "hard_negative",
+        "hail_wind_competing"
+      ],
+      "expected_signal": "non_tornado_severe_day"
+    },
+    {
+      "case_id": "2020-02-03_00z_null_001",
+      "date": "2020-02-03",
+      "cycle": "00",
+      "fold": "test",
+      "region": "plains",
+      "season": "cool",
+      "regime": "dryline_supercell",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-02-06_12z_null_002",
+      "date": "2020-02-06",
+      "cycle": "12",
+      "fold": "tune",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "southeast_qcls",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-02-09_06z_null_003",
+      "date": "2020-02-09",
+      "cycle": "06",
+      "fold": "train",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-02-12_18z_null_004",
+      "date": "2020-02-12",
+      "cycle": "18",
+      "fold": "train",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-02-15_00z_null_005",
+      "date": "2020-02-15",
+      "cycle": "00",
+      "fold": "train",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "northwest_flow",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-02-18_12z_null_006",
+      "date": "2020-02-18",
+      "cycle": "12",
+      "fold": "test",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "dryline_supercell",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-02-21_06z_null_007",
+      "date": "2020-02-21",
+      "cycle": "06",
+      "fold": "tune",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "southeast_qcls",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-02-24_18z_null_008",
+      "date": "2020-02-24",
+      "cycle": "18",
+      "fold": "train",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-02-27_00z_null_009",
+      "date": "2020-02-27",
+      "cycle": "00",
+      "fold": "train",
+      "region": "plains",
+      "season": "cool",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-03-01_12z_null_010",
+      "date": "2020-03-01",
+      "cycle": "12",
+      "fold": "train",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "northwest_flow",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-03-04_06z_null_011",
+      "date": "2020-03-04",
+      "cycle": "06",
+      "fold": "test",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "dryline_supercell",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-03-07_18z_null_012",
+      "date": "2020-03-07",
+      "cycle": "18",
+      "fold": "tune",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "southeast_qcls",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-03-10_00z_null_013",
+      "date": "2020-03-10",
+      "cycle": "00",
+      "fold": "train",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-03-13_12z_null_014",
+      "date": "2020-03-13",
+      "cycle": "12",
+      "fold": "train",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-03-16_06z_null_015",
+      "date": "2020-03-16",
+      "cycle": "06",
+      "fold": "train",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "northwest_flow",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-03-19_18z_null_016",
+      "date": "2020-03-19",
+      "cycle": "18",
+      "fold": "test",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "dryline_supercell",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-03-22_00z_null_017",
+      "date": "2020-03-22",
+      "cycle": "00",
+      "fold": "tune",
+      "region": "plains",
+      "season": "cool",
+      "regime": "southeast_qcls",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-03-25_12z_null_018",
+      "date": "2020-03-25",
+      "cycle": "12",
+      "fold": "train",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-03-28_06z_null_019",
+      "date": "2020-03-28",
+      "cycle": "06",
+      "fold": "train",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-03-31_18z_null_020",
+      "date": "2020-03-31",
+      "cycle": "18",
+      "fold": "train",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "northwest_flow",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-04-03_00z_null_021",
+      "date": "2020-04-03",
+      "cycle": "00",
+      "fold": "test",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "dryline_supercell",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-04-06_12z_null_022",
+      "date": "2020-04-06",
+      "cycle": "12",
+      "fold": "tune",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "southeast_qcls",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-04-09_06z_null_023",
+      "date": "2020-04-09",
+      "cycle": "06",
+      "fold": "train",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-04-12_18z_null_024",
+      "date": "2020-04-12",
+      "cycle": "18",
+      "fold": "train",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-04-15_00z_null_025",
+      "date": "2020-04-15",
+      "cycle": "00",
+      "fold": "train",
+      "region": "plains",
+      "season": "cool",
+      "regime": "northwest_flow",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-04-18_12z_null_026",
+      "date": "2020-04-18",
+      "cycle": "12",
+      "fold": "test",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "dryline_supercell",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-04-21_06z_null_027",
+      "date": "2020-04-21",
+      "cycle": "06",
+      "fold": "tune",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "southeast_qcls",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-04-24_18z_null_028",
+      "date": "2020-04-24",
+      "cycle": "18",
+      "fold": "train",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-04-27_00z_null_029",
+      "date": "2020-04-27",
+      "cycle": "00",
+      "fold": "train",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-04-30_12z_null_030",
+      "date": "2020-04-30",
+      "cycle": "12",
+      "fold": "train",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "northwest_flow",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-05-03_06z_null_031",
+      "date": "2020-05-03",
+      "cycle": "06",
+      "fold": "test",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "dryline_supercell",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-05-06_18z_null_032",
+      "date": "2020-05-06",
+      "cycle": "18",
+      "fold": "tune",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "southeast_qcls",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-05-09_00z_null_033",
+      "date": "2020-05-09",
+      "cycle": "00",
+      "fold": "train",
+      "region": "plains",
+      "season": "cool",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-05-12_12z_null_034",
+      "date": "2020-05-12",
+      "cycle": "12",
+      "fold": "train",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-05-15_06z_null_035",
+      "date": "2020-05-15",
+      "cycle": "06",
+      "fold": "train",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "northwest_flow",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-05-18_18z_null_036",
+      "date": "2020-05-18",
+      "cycle": "18",
+      "fold": "test",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "dryline_supercell",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-05-21_00z_null_037",
+      "date": "2020-05-21",
+      "cycle": "00",
+      "fold": "tune",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "southeast_qcls",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-05-24_12z_null_038",
+      "date": "2020-05-24",
+      "cycle": "12",
+      "fold": "train",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-05-27_06z_null_039",
+      "date": "2020-05-27",
+      "cycle": "06",
+      "fold": "train",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-05-30_18z_null_040",
+      "date": "2020-05-30",
+      "cycle": "18",
+      "fold": "train",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "northwest_flow",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-06-02_00z_null_041",
+      "date": "2020-06-02",
+      "cycle": "00",
+      "fold": "test",
+      "region": "plains",
+      "season": "cool",
+      "regime": "dryline_supercell",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-06-05_12z_null_042",
+      "date": "2020-06-05",
+      "cycle": "12",
+      "fold": "tune",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "southeast_qcls",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-06-08_06z_null_043",
+      "date": "2020-06-08",
+      "cycle": "06",
+      "fold": "train",
+      "region": "midwest",
+      "season": "summer",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-06-11_18z_null_044",
+      "date": "2020-06-11",
+      "cycle": "18",
+      "fold": "train",
+      "region": "great_lakes",
+      "season": "fall",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-06-14_00z_null_045",
+      "date": "2020-06-14",
+      "cycle": "00",
+      "fold": "train",
+      "region": "mid_south",
+      "season": "cool",
+      "regime": "northwest_flow",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-06-17_12z_null_046",
+      "date": "2020-06-17",
+      "cycle": "12",
+      "fold": "test",
+      "region": "ohio_valley",
+      "season": "spring",
+      "regime": "dryline_supercell",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-06-20_06z_null_047",
+      "date": "2020-06-20",
+      "cycle": "06",
+      "fold": "tune",
+      "region": "southern_plains",
+      "season": "summer",
+      "regime": "southeast_qcls",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-06-23_18z_null_048",
+      "date": "2020-06-23",
+      "cycle": "18",
+      "fold": "train",
+      "region": "northern_plains",
+      "season": "fall",
+      "regime": "warm_sector_discrete",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-06-26_00z_null_049",
+      "date": "2020-06-26",
+      "cycle": "00",
+      "fold": "train",
+      "region": "plains",
+      "season": "cool",
+      "regime": "elevated_hail_wind",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    },
+    {
+      "case_id": "2020-06-29_12z_null_050",
+      "date": "2020-06-29",
+      "cycle": "12",
+      "fold": "train",
+      "region": "southeast",
+      "season": "spring",
+      "regime": "northwest_flow",
+      "tags": [
+        "null",
+        "quiet_period"
+      ],
+      "expected_signal": "null_day"
+    }
+  ]
+}

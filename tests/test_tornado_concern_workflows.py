@@ -208,9 +208,9 @@ def test_build_tornado_concern_product_prefers_consensus_artifact_when_present(t
     (paths.outputs / "forecast_consensus_metadata_2024-04-26_00.json").write_text(
         json.dumps(
             {
-                "included_sources": ["hrrr_recent", "rap_recent", "aws_recent"],
+                "included_sources": ["hrrr_recent", "rap_recent", "nam_recent", "aws_recent", "ecmwf_recent"],
                 "reference_source": "aws_recent",
-                "primary_model_code_map": {"aws_recent": 1, "hrrr_recent": 2, "rap_recent": 3},
+                "primary_model_code_map": {"aws_recent": 1, "ecmwf_recent": 2, "hrrr_recent": 3, "nam_recent": 4, "rap_recent": 5},
                 "time_weights": [{"lead_hour": 0, "applied_weights": {"hrrr_recent": 0.45, "rap_recent": 0.25, "aws_recent": 0.15}}],
                 "ingest_summary": {"source": "forecast_consensus", "source_mode": "real"},
             }
@@ -233,7 +233,8 @@ def test_build_tornado_concern_product_prefers_consensus_artifact_when_present(t
     assert metadata["field_name"] == CONSENSUS_FIELD
     assert metadata["publication_status"] == "public_candidate"
     assert metadata["consensus_audit"]["max_signal_agreement_count"] == 2
-    assert metadata["forecast_consensus_summary"]["included_sources"] == ["hrrr_recent", "rap_recent", "aws_recent"]
+    assert metadata["source_audit"]["public_ready"]
+    assert metadata["forecast_consensus_summary"]["included_sources"] == ["hrrr_recent", "rap_recent", "nam_recent", "aws_recent", "ecmwf_recent"]
 
     direct_metadata = product_cli.build_product_bundle(
         date="2024-04-26",
@@ -287,6 +288,52 @@ def test_build_tornado_concern_product_marks_single_source_consensus_internal_on
     assert not metadata["public_ready"]
     assert metadata["publication_status"] == "internal_review_only"
     assert "consensus_less_than_two_supporting_sources" in metadata["failure_reasons"]
+
+
+def test_build_tornado_concern_product_marks_missing_ecmwf_internal_only(tmp_path: Path, monkeypatch) -> None:
+    paths = _workflow_paths(tmp_path)
+    for path in [paths.outputs, paths.verification, paths.labels, paths.interim]:
+        path.mkdir(parents=True, exist_ok=True)
+    values = np.full((1, 5, 5), 0.10, dtype=np.float32)
+    agreement = np.full_like(values, 4.0)
+    xr.Dataset(
+        {
+            CONSENSUS_FIELD: (("time", "lat", "lon"), values),
+            "model_agreement_count": (("time", "lat", "lon"), agreement),
+            "consensus_confidence_modifier": (("time", "lat", "lon"), np.full_like(values, 0.8)),
+        },
+        coords={
+            "time": pd.to_datetime(["2024-04-26T00:00:00"]),
+            "lat": [33.0, 34.0, 35.0, 36.0, 37.0],
+            "lon": [-100.0, -99.0, -98.0, -97.0, -96.0],
+        },
+    ).to_netcdf(paths.outputs / "forecast_consensus_2024-04-26_00.nc")
+    (paths.outputs / "forecast_consensus_metadata_2024-04-26_00.json").write_text(
+        json.dumps(
+            {
+                "included_sources": ["hrrr_recent", "rap_recent", "nam_recent", "aws_recent"],
+                "excluded_sources": [{"source": "ecmwf_recent", "reason": "provider_failed"}],
+                "ingest_summary": {"source": "forecast_consensus", "source_mode": "real", "real_ingest_available": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(product_cli, "load_settings", lambda: AppSettings(raw={}))
+    monkeypatch.setattr(product_cli, "build_paths", lambda _settings: paths)
+
+    metadata = product_cli.build_product_bundle(
+        date="2024-04-26",
+        cycle="00",
+        outdir=tmp_path / "product",
+        map_style="outlook",
+        map_domain="conus",
+        overwrite=True,
+    )
+
+    assert not metadata["public_ready"]
+    assert metadata["publication_status"] == "internal_review_only"
+    assert "source_missing_candidate:ecmwf_recent" in metadata["failure_reasons"]
+    assert metadata["source_audit"]["included_sources"] == ["aws_recent", "hrrr_recent", "nam_recent", "rap_recent"]
 
 
 def test_prototype_tornado_concern_map_styles_generates_comparison_board(tmp_path: Path, monkeypatch) -> None:

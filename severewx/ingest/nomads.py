@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import timedelta
 import json
@@ -17,7 +18,7 @@ import xarray as xr
 
 from severewx.config import AppSettings
 from severewx.ingest.normalize import normalize_dataset
-from severewx.ingest.stage_gfs import NOAA_GRIB_SOURCE_SPECS, stage_historical_gfs
+from severewx.ingest.stage_gfs import NOAA_GRIB_SOURCE_SPECS, OPEN_METEO_SOURCE_SPECS, stage_historical_gfs
 from severewx.ingest.storage import (
     load_json_metadata,
     raw_grib_metadata_path,
@@ -35,6 +36,8 @@ SYNTHETIC_SOURCES = {"synthetic", "synthetic_fallback"}
 REMOTE_STAGED_SOURCES = {
     "aws_recent",
     "open_meteo_recent",
+    "openmeteo_recent",
+    "ecmwf_recent",
     "staged_gfs_auto",
     "hrrr_recent",
     "rap_recent",
@@ -134,21 +137,49 @@ def _source_origin(source_name: str) -> str:
 def _remote_stage_strategy(source_name: str) -> str:
     if source_name == "staged_gfs_auto":
         return "auto"
-    if source_name in {"open_meteo_recent", *NOAA_GRIB_SOURCE_SPECS}:
+    if source_name == "openmeteo_recent":
+        return "open_meteo_recent"
+    if source_name in {*OPEN_METEO_SOURCE_SPECS, *NOAA_GRIB_SOURCE_SPECS}:
         return source_name
     raise ValueError(f"unsupported remote staged GFS source: {source_name}")
 
 
 def _remote_stage_output_root(source_name: str, paths: DataPaths) -> Path:
-    if source_name in {"aws_recent", "open_meteo_recent", "staged_gfs_auto"}:
+    if source_name in {"aws_recent", "open_meteo_recent", "openmeteo_recent", "staged_gfs_auto"}:
         return paths.raw / "staged_gfs"
+    if source_name in OPEN_METEO_SOURCE_SPECS:
+        return paths.raw / "staged_forecasts" / source_name
     return paths.raw / "staged_forecasts" / source_name
 
 
 def _remote_stage_output_source_name(source_name: str) -> str:
-    if source_name in {"open_meteo_recent", "staged_gfs_auto"}:
+    if source_name in {"open_meteo_recent", "openmeteo_recent", "staged_gfs_auto"}:
         return "aws_recent"
+    if source_name in OPEN_METEO_SOURCE_SPECS:
+        return source_name
     return source_name
+
+
+def _successful_stage_leads(report: dict[str, Any]) -> list[int]:
+    leads: list[int] = []
+    for result in report.get("results", []) or []:
+        if not isinstance(result, dict):
+            continue
+        if str(result.get("status", "")) not in {"downloaded", "skipped_existing"}:
+            continue
+        try:
+            leads.append(int(result["lead_hour"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return sorted(set(leads))
+
+
+def _settings_with_leads(settings: AppSettings, leads: list[int]) -> AppSettings:
+    raw = deepcopy(settings.raw)
+    ingest = raw.setdefault("ingest", {})
+    if isinstance(ingest, dict):
+        ingest["leads"] = [int(value) for value in leads]
+    return AppSettings(raw=raw)
 
 
 def _processing_scope(settings: AppSettings) -> dict[str, Any]:
@@ -690,6 +721,8 @@ class LocalStagedGFSForecastSource:
         if self.stage_root is not None:
             staged_path = str(self.stage_root)
             source_output = NOAA_GRIB_SOURCE_SPECS.get(self.stage_source_name, NOAA_GRIB_SOURCE_SPECS["aws_recent"])["output_template"]
+            if self.stage_source_name in OPEN_METEO_SOURCE_SPECS:
+                source_output = OPEN_METEO_SOURCE_SPECS[self.stage_source_name]["output_template"]
             stage_specific = [
                 f"{staged_path}/{{date}}/{{cycle}}/{source_output}",
                 f"{staged_path}/{{date}}/{{cycle}}/{Path(source_output).with_suffix('.nc')}",
@@ -878,15 +911,23 @@ class RemoteStagedGFSForecastSource:
         )
         if int(report.get("successful_downloads", 0) or 0) <= 0 and int(report.get("skipped_existing_files", 0) or 0) <= 0:
             raise RuntimeError(f"remote staged forecast source failed to stage any usable leads: {report.get('report_path', '')}")
+        load_settings = settings
+        if strategy in OPEN_METEO_SOURCE_SPECS and bool(settings.get("ingest.open_meteo_recent.representative_leads_only", True)):
+            representative_leads = _successful_stage_leads(report)
+            if representative_leads:
+                load_settings = _settings_with_leads(settings, representative_leads)
         dataset, summary = LocalStagedGFSForecastSource(
             source_name=f"local_staged_{self.source_name}",
             stage_root=output_root,
             stage_source_name=output_source_name,
-        ).fetch_cycle(date, cycle, settings, paths)
+        ).fetch_cycle(date, cycle, load_settings, paths)
         summary["source"] = self.source_name
         summary["source_mode"] = "real"
         summary["source_origin"] = "remote"
-        summary["source_model"] = NOAA_GRIB_SOURCE_SPECS.get(output_source_name, {"model": "gfs"}).get("model", "gfs")
+        if strategy in OPEN_METEO_SOURCE_SPECS:
+            summary["source_model"] = OPEN_METEO_SOURCE_SPECS[strategy]["source_model"]
+        else:
+            summary["source_model"] = NOAA_GRIB_SOURCE_SPECS.get(output_source_name, {"model": "gfs"}).get("model", "gfs")
         summary["remote_stage_output_root"] = str(output_root)
         summary["remote_stage_output_source_name"] = output_source_name
         summary["remote_stage_strategy"] = strategy

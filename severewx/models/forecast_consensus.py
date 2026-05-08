@@ -14,7 +14,7 @@ import xarray as xr
 from severewx.utils.dates import cycle_datetime
 
 
-AUTO_CONSENSUS_SOURCES = ["hrrr_recent", "rap_recent", "nam_recent", "aws_recent"]
+AUTO_CONSENSUS_SOURCES = ["hrrr_recent", "rap_recent", "nam_recent", "aws_recent", "ecmwf_recent"]
 CONSENSUS_INPUT_FIELD = "tornado_environment_outlook_hybrid"
 CONSENSUS_FIELD = "tornado_environment_outlook_hybrid_consensus"
 DISPLAY_AGREEMENT_THRESHOLD = 0.02
@@ -47,16 +47,16 @@ def consensus_metadata_path(outputs_dir: Path, date: str, cycle: str) -> Path:
 def consensus_weights_for_lead(lead_hour: int | float) -> dict[str, float]:
     lead = float(lead_hour)
     if lead <= 18:
-        return {"hrrr_recent": 0.45, "rap_recent": 0.25, "nam_recent": 0.15, "aws_recent": 0.15}
+        return {"hrrr_recent": 0.40, "rap_recent": 0.22, "nam_recent": 0.13, "aws_recent": 0.13, "open_meteo_recent": 0.06, "ecmwf_recent": 0.06}
     if lead <= 48:
-        return {"hrrr_recent": 0.30, "nam_recent": 0.30, "aws_recent": 0.25, "gefs_mean_recent": 0.15}
+        return {"hrrr_recent": 0.26, "nam_recent": 0.26, "aws_recent": 0.22, "gefs_mean_recent": 0.10, "ecmwf_recent": 0.10, "open_meteo_recent": 0.06}
     if lead <= 60:
-        return {"aws_recent": 0.40, "gefs_mean_recent": 0.35, "nam_recent": 0.25}
+        return {"aws_recent": 0.34, "gefs_mean_recent": 0.28, "nam_recent": 0.20, "ecmwf_recent": 0.14, "open_meteo_recent": 0.04}
     if lead <= 84:
-        return {"aws_recent": 0.45, "gefs_mean_recent": 0.40, "nam_recent": 0.15}
+        return {"aws_recent": 0.36, "gefs_mean_recent": 0.30, "ecmwf_recent": 0.22, "nam_recent": 0.12}
     if lead <= 96:
-        return {"gefs_mean_recent": 0.55, "aws_recent": 0.45}
-    return {"gefs_mean_recent": 0.65, "aws_recent": 0.35}
+        return {"gefs_mean_recent": 0.45, "aws_recent": 0.35, "ecmwf_recent": 0.20}
+    return {"gefs_mean_recent": 0.50, "aws_recent": 0.25, "ecmwf_recent": 0.25}
 
 
 def _load_json(path: Path | None) -> dict[str, Any]:

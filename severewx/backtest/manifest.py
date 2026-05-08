@@ -16,6 +16,10 @@ class BacktestCase:
     cycle: str
     tags: tuple[str, ...]
     expected_signal: str
+    fold: str = "eval"
+    region: str = "unknown"
+    season: str = "unknown"
+    regime: str = "unknown"
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,7 +64,9 @@ def load_backtest_manifest(path: Path | str) -> BacktestManifest:
     if not isinstance(source_values, list) or not all(str(value).strip() for value in source_values):
         raise ValueError("target_product.default_sources must be a non-empty list")
 
+    required_case_metadata = bool(payload.get("require_case_metadata", False))
     seen_case_ids: set[str] = set()
+    seen_case_keys: dict[tuple[str, str], str] = {}
     cases: list[BacktestCase] = []
     for raw_case in payload.get("cases", []):
         if not isinstance(raw_case, dict):
@@ -71,20 +77,56 @@ def load_backtest_manifest(path: Path | str) -> BacktestManifest:
         if case_id in seen_case_ids:
             raise ValueError(f"duplicate case_id: {case_id}")
         seen_case_ids.add(case_id)
+        case_date = _validate_date(str(raw_case.get("date", "")), field_name=f"{case_id}.date")
+        case_cycle = _validate_cycle(str(raw_case.get("cycle", "00")))
+        case_key = (case_date, case_cycle)
+        if case_key in seen_case_keys:
+            raise ValueError(f"duplicate date/cycle across cases: {case_date} {case_cycle}Z")
+        seen_case_keys[case_key] = case_id
         tags = raw_case.get("tags", [])
         if not isinstance(tags, list):
             raise ValueError(f"tags must be a list for case {case_id}")
+        fold = str(raw_case.get("fold", "eval")).strip().lower()
+        if fold not in {"train", "tune", "test", "eval"}:
+            raise ValueError(f"fold must be train, tune, test, or eval for case {case_id}")
+        region = str(raw_case.get("region", "unknown")).strip().lower()
+        season = str(raw_case.get("season", "unknown")).strip().lower()
+        regime = str(raw_case.get("regime", "unknown")).strip().lower()
+        if required_case_metadata and (
+            fold == "eval" or region == "unknown" or season == "unknown" or regime == "unknown"
+        ):
+            raise ValueError(f"case metadata fold/region/season/regime is required for case {case_id}")
         cases.append(
             BacktestCase(
                 case_id=case_id,
-                date=_validate_date(str(raw_case.get("date", "")), field_name=f"{case_id}.date"),
-                cycle=_validate_cycle(str(raw_case.get("cycle", "00"))),
+                date=case_date,
+                cycle=case_cycle,
                 tags=tuple(str(tag) for tag in tags),
                 expected_signal=str(raw_case.get("expected_signal", "")).strip(),
+                fold=fold,
+                region=region,
+                season=season,
+                regime=regime,
             )
         )
     if not cases:
         raise ValueError("at least one backtest case is required")
+    minimum_counts = payload.get("minimum_case_counts", {})
+    if isinstance(minimum_counts, dict):
+        tag_counts = {
+            "tornado_relevant": sum(1 for case in cases if "tornado_relevant" in case.tags),
+            "hard_negative": sum(1 for case in cases if "hard_negative" in case.tags),
+            "null": sum(1 for case in cases if "null" in case.tags),
+        }
+        for key, minimum in minimum_counts.items():
+            if int(tag_counts.get(str(key), 0)) < int(minimum):
+                raise ValueError(f"manifest requires at least {minimum} {key} cases")
+    required_folds = payload.get("required_folds", [])
+    if isinstance(required_folds, list):
+        present_folds = {case.fold for case in cases}
+        missing_folds = [str(fold) for fold in required_folds if str(fold) not in present_folds]
+        if missing_folds:
+            raise ValueError(f"manifest missing required folds: {', '.join(missing_folds)}")
     return BacktestManifest(
         manifest_id=manifest_id,
         description=str(payload.get("description", "")),
@@ -106,6 +148,10 @@ def manifest_to_jsonable(manifest: BacktestManifest) -> dict[str, Any]:
                 "cycle": case.cycle,
                 "tags": list(case.tags),
                 "expected_signal": case.expected_signal,
+                "fold": case.fold,
+                "region": case.region,
+                "season": case.season,
+                "regime": case.regime,
             }
             for case in manifest.cases
         ],

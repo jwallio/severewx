@@ -1,6 +1,6 @@
 import numpy as np
 
-from severewx.labels.neighborhood import neighborhood_hits
+from severewx.labels.neighborhood import neighborhood_hits, tornado_report_25mi_hits
 
 
 def test_neighborhood_hits_marks_nearby_gridpoints() -> None:
@@ -12,3 +12,14 @@ def test_neighborhood_hits_marks_nearby_gridpoints() -> None:
     assert hits.shape == lat.shape
     assert hits[0, 0] == 1
     assert hits[1, 1] == 0
+
+
+def test_tornado_report_25mi_hits_uses_spc_radius() -> None:
+    lat = np.array([[35.0, 35.0]])
+    lon = np.array([[-97.0, -96.0]])
+    report_lat = np.array([35.0])
+    report_lon = np.array([-97.0])
+
+    hits = tornado_report_25mi_hits(lat, lon, report_lat, report_lon)
+
+    assert hits.tolist() == [[1, 0]]

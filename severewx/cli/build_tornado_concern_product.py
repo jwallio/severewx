@@ -800,6 +800,37 @@ def _consensus_readiness_audit(dataset: xr.Dataset, field_name: str) -> dict[str
     }
 
 
+CORE_PUBLIC_SOURCES = {"hrrr_recent", "rap_recent", "nam_recent", "aws_recent"}
+PUBLIC_CANDIDATE_SOURCE = "ecmwf_recent"
+
+
+def _source_readiness_audit(forecast_metadata: dict[str, Any], field_name: str) -> dict[str, Any]:
+    if field_name != DEFAULT_CONSENSUS_PRODUCT_FIELD:
+        return {"status": "skipped", "public_ready": True, "failure_reasons": ""}
+    ingest = forecast_metadata.get("ingest_summary", {}) if isinstance(forecast_metadata.get("ingest_summary", {}), dict) else {}
+    included = {str(source) for source in forecast_metadata.get("included_sources", []) if str(source)}
+    excluded = forecast_metadata.get("excluded_sources", [])
+    failures: list[str] = []
+    if str(ingest.get("source_mode", "real")).lower() == "synthetic":
+        failures.append("source_synthetic_ingest")
+    if not bool(ingest.get("real_ingest_available", True)):
+        failures.append("source_real_ingest_unavailable")
+    missing_core = sorted(CORE_PUBLIC_SOURCES - included)
+    if missing_core:
+        failures.append("source_missing_core:" + ",".join(missing_core))
+    if PUBLIC_CANDIDATE_SOURCE not in included:
+        failures.append(f"source_missing_candidate:{PUBLIC_CANDIDATE_SOURCE}")
+    return {
+        "status": "ok" if not failures else "flagged",
+        "public_ready": not failures,
+        "failure_reasons": ";".join(failures),
+        "required_core_sources": sorted(CORE_PUBLIC_SOURCES),
+        "candidate_source": PUBLIC_CANDIDATE_SOURCE,
+        "included_sources": sorted(included),
+        "excluded_sources": excluded if isinstance(excluded, list) else [],
+    }
+
+
 def _render_readiness_audit(render_metadata: dict[str, Any], *, require_production_basemap: bool) -> dict[str, Any]:
     if not require_production_basemap:
         return {"status": "skipped", "public_ready": True, "failure_reasons": ""}
@@ -1195,6 +1226,7 @@ def build_product_bundle(
         )
     display_audit_result = _display_readiness_audit(display_stats, map_style=map_style)
     consensus_audit_result = _consensus_readiness_audit(valid_dataset, field_name)
+    source_audit_result = _source_readiness_audit(forecast_metadata, field_name)
     render_audit_result = _render_readiness_audit(render_metadata, require_production_basemap=require_production_basemap)
     combined_failure_reasons = ";".join(
         reason
@@ -1202,6 +1234,7 @@ def build_product_bundle(
             str(artifact_audit_result.get("failure_reasons", "") or ""),
             str(display_audit_result.get("failure_reasons", "") or ""),
             str(consensus_audit_result.get("failure_reasons", "") or ""),
+            str(source_audit_result.get("failure_reasons", "") or ""),
             str(render_audit_result.get("failure_reasons", "") or ""),
         ]
         if reason
@@ -1210,6 +1243,7 @@ def build_product_bundle(
         bool(artifact_audit_result.get("public_ready", False))
         and bool(display_audit_result.get("public_ready", False))
         and bool(consensus_audit_result.get("public_ready", True))
+        and bool(source_audit_result.get("public_ready", True))
         and bool(render_audit_result.get("public_ready", True))
     )
     publication_status = "public_candidate" if combined_public_ready else "internal_review_only"
@@ -1217,6 +1251,7 @@ def build_product_bundle(
         bool(artifact_audit_result.get("public_ready", False))
         and bool(display_audit_result.get("public_ready", False))
         and bool(consensus_audit_result.get("public_ready", True))
+        and bool(source_audit_result.get("public_ready", True))
     )
     if not combined_public_ready and non_render_public_ready and render_audit_result.get("failure_reasons") == "render_basemap_fallback":
         publication_status = "needs_render_review"
@@ -1263,6 +1298,7 @@ def build_product_bundle(
         "product_audit": artifact_audit_result,
         "display_audit": display_audit_result,
         "consensus_audit": consensus_audit_result,
+        "source_audit": source_audit_result,
         "render_audit": render_audit_result,
         **render_metadata,
         "ingredient_diagnostics": ingredient_diagnostics,
