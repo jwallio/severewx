@@ -14,8 +14,18 @@
 - The promoted candidate operational source set is HRRR, RAP, NAM, GFS/AWS, and ECMWF. OpenMeteo GFS remains an optional availability/comparison source until a larger locked backtest shows an independent accuracy gain.
 - Keep `synthetic_fallback_allowed=false` for every accuracy, calibration, and public-readiness run.
 - Run the backtest CLI with `--build-consensus --build-products --verify --score` once archived public NOAA/SPC data for the fixed cases is available locally.
+- Build the deterministic training table from scored backtest outputs before tuning:
+  `python -m severewx.cli.build_backtest_training_table --manifest backtests/tornado_environment_consensus_v2_pilot.json --run-dir data/outputs/verification/pilot15_group_noaa_ecmwf_trimmed --output-dir data/outputs/verification/pilot15_training_accuracy`
 - Review `backtest_summary.json` for fold coverage, source ablation, SPC threshold metrics, reliability bins, candidate calibration readiness, and public-readiness status.
 - Use `docs/forecast_source_mix_decision.md` as the current source-mix decision record for ECMWF/OpenMeteo promotion status.
+
+## Training And Calibration Rules
+
+- Training rows must be verified and real-source only by default.
+- Preserve raw and calibrated tornado probabilities side by side; do not replace the public product field until locked test folds improve.
+- Calibration fits use tune folds only. Test folds are evaluation-only.
+- Segment skill by lead day, region, season, regime, source set, and source-availability tier.
+- Current source tiers separate recent full-stack cases from archive-blocked or partial-source cases so old archive gaps do not distort recent operational skill.
 
 ## Public-Readiness Rules
 
