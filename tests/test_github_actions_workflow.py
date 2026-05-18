@@ -41,10 +41,9 @@ def test_manual_model_run_uses_consensus_conus_pages_products() -> None:
     assert "preview_field={'tornado_environment_outlook_hybrid_consensus' if preview_is_consensus" in text
     assert "preview_artifact_source={'consensus' if preview_is_consensus" in text
     assert "preview_map_domain=conus" in text
-    assert '--field "${{ steps.command.outputs.preview_field }}"' in text
-    assert '--map-domain "${{ steps.command.outputs.preview_map_domain }}"' in text
-    assert '--artifact-source "${{ steps.command.outputs.preview_artifact_source }}"' in text
-    assert "--require-production-basemap" in text
     preview_step = text.split("name: Build tornado-concern Day 1-3 Pages maps", maxsplit=1)[1]
+    assert "python -m severewx.cli.build_tornado_concern_spc_window_products" in preview_step
+    assert "--day1-valid-start auto" in preview_step
+    assert "--valid-date" not in preview_step
     assert "--map-domain regional" not in preview_step
     assert "--artifact-source prediction" not in preview_step

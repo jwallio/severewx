@@ -428,21 +428,12 @@ jobs:
           init_date="${{ steps.command.outputs.resolved_date }}"
           cycle="${{ steps.command.outputs.resolved_cycle }}"
           outdir="data/outputs/github_actions/tornado_concern_product_${init_date}_${cycle}z"
-          for offset in 0 1 2; do
-            valid_date="$(date -u -d "${init_date} + ${offset} day" +%F)"
-            python -m severewx.cli.build_tornado_concern_product \
-              --date "${init_date}" \
-              --cycle "${cycle}" \
-              --valid-date "${valid_date}" \
-              --outdir "${outdir}" \
-              --field "${{ steps.command.outputs.preview_field }}" \
-              --map-style outlook \
-              --map-domain "${{ steps.command.outputs.preview_map_domain }}" \
-              --artifact-source "${{ steps.command.outputs.preview_artifact_source }}" \
-              --display-preset auto \
-              --require-production-basemap \
-              --overwrite
-          done
+          python -m severewx.cli.build_tornado_concern_spc_window_products \
+            --date "${init_date}" \
+            --cycle "${cycle}" \
+            --day1-valid-start auto \
+            --outdir "${outdir}" \
+            --overwrite
 
       - name: Write run summary
         if: always()
